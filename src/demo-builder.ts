@@ -3,7 +3,7 @@ import { mkdir } from 'fs/promises';
 import { join, dirname } from 'path';
 import { DemoConfig, DemoState, DEFAULT_CONFIG } from './types';
 import { Narration } from './narration';
-import { concatAudioWithGaps, mergeAudioVideo } from './ffmpeg-utils';
+import { concatAudioWithGaps, mergeAudioVideo, detectSyncFrameRange, trimSyncFrames } from './ffmpeg-utils';
 import { generateSound, initSoundsDir, SoundType, getVariantSoundType } from './sounds';
 
 /**
@@ -111,9 +111,10 @@ export class SoundEnabledPage {
 
       // Record timestamp BEFORE typing - sound should start as keystroke begins
       // Recording after causes drift since page.type() has internal latency
+      // Use syncTime for audio alignment - this is when the sync marker was shown
       const soundType = this.getSoundTypeForChar(currentChar);
-      const timeMs = Date.now() - this.state.startTime;
-      console.log(`[SOUND] ${soundType} for '${currentChar}' at ${timeMs}ms`);
+      const timeMs = Date.now() - this.state.syncTime;
+      console.log(`[SOUND] ${soundType} for '${currentChar}' at ${timeMs}ms (relative to sync marker)`);
       this.recordTimestampAt(soundType, timeMs);
 
       // Type single character
@@ -212,6 +213,7 @@ export class NarratedDemo {
     this.state = {
       started: false,
       startTime: 0,
+      syncTime: 0,
       audioSegments: [],
       videoPath: null,
       browser: null,
@@ -225,9 +227,10 @@ export class NarratedDemo {
 
   /**
    * Record a timestamp for a sound event (used for click sounds)
+   * Uses syncTime for audio alignment - this is when the sync marker was shown
    */
   private recordSoundTimestamp(type: SoundType): void {
-    const timeMs = Date.now() - this.state.startTime;
+    const timeMs = Date.now() - this.state.syncTime;
     this.pendingSoundTimestamps.push({ type, timeMs });
   }
 
@@ -274,14 +277,48 @@ export class NarratedDemo {
       );
     }
 
-    // Navigate to base URL
+    // Navigate to base URL and wait for it to fully load
     await this.state.page.goto(this.config.baseUrl);
+    await this.state.page.waitForLoadState('networkidle');
+    console.log(`[TIMING] Page fully loaded`);
 
-    // Set startTime AFTER page navigation completes - this aligns with when video actually starts rendering
-    // Previously this was set at context creation, causing ~2.4s audio offset
+    // Set startTime AFTER page navigation completes
     this.state.started = true;
     this.state.startTime = Date.now();
     console.log(`[TIMING] startTime captured: ${this.state.startTime} (after page navigation)`);
+
+    // Wait 1 second to ensure video recording has stabilized
+    // Playwright's video recording needs time to capture initial frames
+    await this.state.page.waitForTimeout(1000);
+
+    // Inject sync marker (magenta flash) for audio/video alignment
+    // Like a film clapperboard, this provides a known visual anchor point
+    await this.state.page.evaluate(`
+      (() => {
+        const marker = document.createElement('div');
+        marker.id = 'sync-marker';
+        marker.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;background-color:#FF00FF;z-index:2147483647;';
+        document.body.appendChild(marker);
+        // Force a repaint
+        marker.offsetHeight;
+      })()
+    `);
+    console.log(`[TIMING] Sync marker injected`);
+
+    // Wait 100ms for marker to be rendered and captured
+    await this.state.page.waitForTimeout(100);
+
+    // Capture sync time - all audio events will be relative to this moment
+    this.state.syncTime = Date.now();
+    console.log(`[TIMING] syncTime captured: ${this.state.syncTime} (sync marker visible)`);
+
+    // Keep marker visible for ~500ms to ensure it's captured in several frames
+    // At 25fps, 500ms = 12-13 frames, which provides reliable detection
+    await this.state.page.waitForTimeout(500);
+
+    // Remove the sync marker
+    await this.state.page.evaluate(`document.getElementById('sync-marker')?.remove()`);
+    console.log(`[TIMING] Sync marker removed after 500ms`);
   }
 
 
@@ -349,6 +386,7 @@ export class NarratedDemo {
 
   /**
    * Finish the demo and produce the final video
+   * Uses sync marker detection for precise audio/video alignment
    */
   async finish(): Promise<string> {
     if (!this.state.started) {
@@ -378,29 +416,87 @@ export class NarratedDemo {
       await this.state.browser.close();
     }
 
-    // If we have audio segments, concatenate them
+    // Detect sync marker in video and trim it
+    let processedVideoPath = this.state.videoPath;
+    let syncFrameOffsetMs = 0;
+    let trimDurationMs = 0;
+
+    if (this.state.videoPath) {
+      console.log(`\n[SYNC] Detecting sync marker in video...`);
+      const { firstSyncFrame, lastSyncFrame, frameDurationMs } = await detectSyncFrameRange(this.state.videoPath);
+
+      if (firstSyncFrame >= 0) {
+        // Calculate where the sync marker appears in the video
+        syncFrameOffsetMs = firstSyncFrame * frameDurationMs;
+        const syncDurationFrames = lastSyncFrame - firstSyncFrame + 1;
+        console.log(`[SYNC] Sync marker found: frames ${firstSyncFrame}-${lastSyncFrame} (${syncDurationFrames} frames)`);
+        console.log(`[SYNC] Sync frame offset: ${syncFrameOffsetMs.toFixed(2)}ms`);
+
+        // Trim sync frames from video
+        // Trim up to and including the last sync frame
+        const framesToTrim = lastSyncFrame + 1;
+        trimDurationMs = framesToTrim * frameDurationMs;
+        const trimmedVideoPath = join(this.tempDir, 'trimmed-video.mp4');
+        await trimSyncFrames(this.state.videoPath, trimmedVideoPath, framesToTrim, frameDurationMs);
+        processedVideoPath = trimmedVideoPath;
+        console.log(`[SYNC] Trimmed ${framesToTrim} frames (${trimDurationMs.toFixed(2)}ms) from video`);
+      } else {
+        console.log(`[SYNC] No sync marker detected in video - using original`);
+      }
+    }
+
+    // If we have audio segments, concatenate them with sync-based offset
     let audioPath: string | null = null;
     if (this.state.audioSegments.length > 0) {
+      // Calculate the audio offset based on video trimming
+      // Audio timestamps are relative to syncTime (when sync marker first appeared in video)
+      // Video has been trimmed to remove sync frames
+      //
+      // The key insight:
+      // - syncTime was captured when marker was visible (~syncFrameOffsetMs into video)
+      // - Video is trimmed by trimDurationMs (removes frames 0 to lastSyncFrame)
+      // - After trimming, video t=0 = original video t=trimDurationMs
+      //
+      // For audio to sync correctly:
+      // - Audio at time T (relative to syncTime) should play at:
+      //   T - (trimDurationMs - syncFrameOffsetMs)
+      //
+      // Because syncTime is at syncFrameOffsetMs in original video,
+      // and after trimming, we've removed trimDurationMs worth of video.
+      // The difference (trimDurationMs - syncFrameOffsetMs) is how much
+      // of the video after syncTime was trimmed.
+      //
+      // Example:
+      // - syncFrameOffsetMs = 160ms (marker first appeared at frame 4)
+      // - trimDurationMs = 480ms (trimmed frames 0-11)
+      // - Audio at 1000ms should play at 1000 - (480 - 160) = 680ms in trimmed video
+
+      const audioOffset = trimDurationMs - syncFrameOffsetMs;
+
       console.log(`\n[TIMING] Final audio segments (${this.state.audioSegments.length} total):`);
+      console.log(`[TIMING] syncFrameOffsetMs: ${syncFrameOffsetMs.toFixed(2)}ms (when marker first appeared)`);
+      console.log(`[TIMING] trimDurationMs: ${trimDurationMs.toFixed(2)}ms (total video trimmed)`);
+      console.log(`[TIMING] audioOffset: ${audioOffset.toFixed(2)}ms (trim - sync offset)`);
       for (const seg of this.state.audioSegments) {
-        console.log(`  ${seg.type || 'narration'} at ${seg.startTimeMs}ms (duration: ${seg.durationMs}ms)`);
+        console.log(`  ${seg.type || 'narration'} at ${seg.startTimeMs}ms -> ${seg.startTimeMs - audioOffset}ms (duration: ${seg.durationMs}ms)`);
       }
+
       audioPath = join(this.tempDir, 'combined-audio.wav');
-      await concatAudioWithGaps(this.state.audioSegments, audioPath);
+      await concatAudioWithGaps(this.state.audioSegments, audioPath, audioOffset);
     }
 
     // Create output directory
     await mkdir(dirname(this.config.output), { recursive: true });
 
     // Merge audio and video if we have both
-    if (this.state.videoPath !== null && audioPath !== null) {
-      await mergeAudioVideo(this.state.videoPath, audioPath, this.config.output);
-    } else if (this.state.videoPath !== null) {
+    if (processedVideoPath !== null && audioPath !== null) {
+      await mergeAudioVideo(processedVideoPath, audioPath, this.config.output);
+    } else if (processedVideoPath !== null) {
       // Just copy video if no audio
       const { exec } = await import('child_process');
       const { promisify } = await import('util');
       const execAsync = promisify(exec);
-      await execAsync(`cp "${this.state.videoPath}" "${this.config.output}"`);
+      await execAsync(`cp "${processedVideoPath}" "${this.config.output}"`);
     }
 
     return this.config.output;
