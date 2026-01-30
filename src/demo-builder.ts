@@ -13,10 +13,23 @@ import { generateSound, initSoundsDir, SoundType } from './sounds';
 export class SoundEnabledPage {
   private originalPage: Page;
   private recordTimestamp: (type: SoundType, count?: number) => void;
+  private pendingSoundTimestamps: Array<{ type: SoundType; timeMs: number }>;
+  private state: DemoState;
 
-  constructor(page: Page, recordTimestamp: (type: SoundType, count?: number) => void) {
+  constructor(
+    page: Page,
+    recordTimestamp: (type: SoundType, count?: number) => void,
+    pendingSoundTimestamps: Array<{ type: SoundType; timeMs: number }>,
+    state: DemoState
+  ) {
     this.originalPage = page;
     this.recordTimestamp = recordTimestamp;
+    this.pendingSoundTimestamps = pendingSoundTimestamps;
+    this.state = state;
+  }
+
+  private recordTimestampAt(type: SoundType, timeMs: number): void {
+    this.pendingSoundTimestamps.push({ type, timeMs });
   }
 
   /**
@@ -38,13 +51,23 @@ export class SoundEnabledPage {
   /**
    * Type text into an element and record keypress timestamps
    */
-  async type(selector: string, text: string): Promise<void> {
+  async type(selector: string, text: string, options?: { delay?: number }): Promise<void> {
     await this.originalPage.locator(selector).scrollIntoViewIfNeeded();
-    // Record a keypress for each character
+
+    const charDelay = options?.delay ?? 80; // Default 80ms between characters
+
     for (let i = 0; i < text.length; i++) {
-      this.recordTimestamp('keypress');
+      // Type single character
+      await this.originalPage.type(selector, text[i]);
+
+      // Record timestamp AFTER typing so sound aligns with character appearance
+      this.recordTimestampAt('keypress', Date.now() - this.state.startTime);
+
+      // Wait between characters (except after the last one)
+      if (i < text.length - 1) {
+        await this.originalPage.waitForTimeout(charDelay);
+      }
     }
-    await this.originalPage.type(selector, text);
   }
 
   /**
@@ -190,14 +213,12 @@ export class NarratedDemo {
     if (this.config.sounds) {
       this.soundEnabledPage = new SoundEnabledPage(
         this.state.page,
-        (type, count) => this.recordSoundTimestamp(type, count)
+        (type, count) => this.recordSoundTimestamp(type, count),
+        this.pendingSoundTimestamps,
+        this.state
       );
     }
 
-    // Inject cursor overlay if enabled (default: true)
-    if (this.config.showCursor !== false) {
-      await this.injectCursorOverlay();
-    }
 
     // Navigate to base URL
     await this.state.page.goto(this.config.baseUrl);
@@ -208,37 +229,10 @@ export class NarratedDemo {
 
   /**
    * Inject a visible cursor overlay that follows mouse movements
+   * Currently disabled - cursor overlay removed
    */
-  private async injectCursorOverlay(): Promise<void> {
-    await this.state.page!.addInitScript(`
-      const cursor = document.createElement('div');
-      cursor.id = 'demo-cursor';
-      cursor.style.cssText = \`
-        position: fixed;
-        width: 24px;
-        height: 24px;
-        background: radial-gradient(circle, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.2) 40%, transparent 70%);
-        border-radius: 50%;
-        pointer-events: none;
-        z-index: 999999;
-        transform: translate(-50%, -50%);
-        transition: transform 0.05s ease-out;
-      \`;
-      document.body.appendChild(cursor);
-
-      document.addEventListener('mousemove', (e) => {
-        cursor.style.left = e.clientX + 'px';
-        cursor.style.top = e.clientY + 'px';
-      });
-
-      document.addEventListener('mousedown', () => {
-        cursor.style.transform = 'translate(-50%, -50%) scale(0.8)';
-      });
-      document.addEventListener('mouseup', () => {
-        cursor.style.transform = 'translate(-50%, -50%) scale(1)';
-      });
-    `);
-  }
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  private async injectCursorOverlay(): Promise<void> {}
 
   /**
    * Create a narration segment
