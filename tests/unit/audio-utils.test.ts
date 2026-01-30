@@ -1,8 +1,8 @@
-import { generateTTS, getAudioDuration } from './audio-utils';
+import { generateTTS, getAudioDuration } from '../../src/audio-utils';
 import { createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { exec } from 'child_process';
-import { TTSOptions } from './types';
+import { TTSOptions } from '../../src/types';
 
 // Mock dependencies
 jest.mock('elevenlabs', () => ({

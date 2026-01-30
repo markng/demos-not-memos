@@ -5,8 +5,8 @@ import {
   getSoundCache,
   SoundType,
   getVariantSoundType,
-} from './sounds';
-import { getAudioDuration } from './audio-utils';
+} from '../../src/sounds';
+import { getAudioDuration } from '../../src/audio-utils';
 import { createWriteStream, existsSync, mkdirSync, unlinkSync, statSync } from 'fs';
 import { pipeline } from 'stream/promises';
 import { execSync } from 'child_process';
@@ -36,7 +36,7 @@ jest.mock('child_process', () => ({
   execSync: jest.fn(),
 }));
 
-jest.mock('./audio-utils', () => ({
+jest.mock('../../src/audio-utils', () => ({
   getAudioDuration: jest.fn(),
 }));
 
@@ -409,6 +409,36 @@ describe('sounds', () => {
       const result = await generateSound('click');
 
       // Should have called API to regenerate
+      expect(mockConvert).toHaveBeenCalledTimes(1);
+      expect(result.durationMs).toBe(100);
+    });
+
+    it('should treat file as invalid if statSync throws an error', async () => {
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      // File exists on disk but statSync throws (file deleted between checks)
+      (existsSync as jest.Mock).mockImplementation((path: string) => {
+        if (path === '/tmp/sounds') return true;
+        if (path === '/tmp/sounds/click.mp3') return true;
+        if (path.endsWith('.temp.mp3')) return true;
+        return false;
+      });
+
+      // First statSync throws error (file inaccessible), second is valid after regeneration
+      (statSync as jest.Mock)
+        .mockImplementationOnce(() => { throw new Error('ENOENT'); }) // Cached file check fails
+        .mockReturnValueOnce({ size: 2000 }); // After regeneration, valid
+
+      const result = await generateSound('click');
+
+      // Should have called API to regenerate because statSync threw
       expect(mockConvert).toHaveBeenCalledTimes(1);
       expect(result.durationMs).toBe(100);
     });

@@ -16,69 +16,61 @@ async function run() {
 
   await demo.start();
 
-  // Welcome and introduction
+  // Introduction - product owner showing off the feature
   await demo.narrate(
-    "[excited] Welcome to TaxoMatic! Let's file your 2024 federal tax return together."
+    "[excited] Hey team! Let me walk you through the W-2 entry feature I finished this sprint."
   );
   await demo.page.waitForTimeout(500);
 
   // Step 1: W-2 Information
   await demo.narrate(
-    "[thoughtful] First, let's enter your W-2 information from your employer."
+    "[thoughtful] So here's the W-2 form. Notice how the layout matches the actual IRS form - users will recognize it immediately."
   );
 
   // Fill employer information
-  const employerName = demo.page.locator('#employer-name');
-  await employerName.click();
-  await employerName.type('Acme Technology Corporation', { delay: 50 });
+  await demo.page.click('#employer-name');
+  await demo.page.type('#employer-name', 'Acme Technology Corporation', { delay: 50 });
 
-  await demo.narrate("[calm] I'll enter Acme Technology as the employer.");
+  await demo.narrate("[calm] The employer name field auto-capitalizes and trims whitespace.");
 
-  const employerEin = demo.page.locator('#employer-ein');
-  await employerEin.click();
-  await employerEin.type('82-1234567', { delay: 80 });
+  await demo.page.click('#employer-ein');
+  await demo.page.type('#employer-ein', '82-1234567', { delay: 80 });
+
+  await demo.narrate(
+    "[curious] Check out this E-I-N validation - it formats as you type."
+  );
 
   // Fill wages
-  await demo.narrate(
-    "[curious] Now for the important numbers. Your wages from Box 1..."
-  );
-
-  const wages = demo.page.locator('#wages');
-  await wages.click();
-  await wages.type('$87,500.00', { delay: 60 });
-
-  const federalWithheld = demo.page.locator('#federal-withheld');
-  await federalWithheld.click();
-  await federalWithheld.type('$12,847.00', { delay: 60 });
+  await demo.page.click('#wages');
+  await demo.page.type('#wages', '$87,500.00', { delay: 60 });
 
   await demo.narrate(
-    "[thoughtful] And you had nearly thirteen thousand dollars withheld in federal taxes."
+    "[thoughtful] Currency fields format automatically with dollar signs and commas."
   );
+
+  await demo.page.click('#federal-withheld');
+  await demo.page.type('#federal-withheld', '$12,847.00', { delay: 60 });
 
   // Fill Social Security
-  const ssWages = demo.page.locator('#social-security-wages');
-  await ssWages.click();
-  await ssWages.type('$87,500.00', { delay: 50 });
+  await demo.page.click('#social-security-wages');
+  await demo.page.type('#social-security-wages', '$87,500.00', { delay: 50 });
 
-  const ssWithheld = demo.page.locator('#social-security-withheld');
-  await ssWithheld.click();
-  await ssWithheld.type('$5,425.00', { delay: 50 });
+  await demo.page.click('#social-security-withheld');
+  await demo.page.type('#social-security-withheld', '$5,425.00', { delay: 50 });
 
   // Fill Medicare
-  const medicareWages = demo.page.locator('#medicare-wages');
-  await medicareWages.click();
-  await medicareWages.type('$87,500.00', { delay: 50 });
+  await demo.page.click('#medicare-wages');
+  await demo.page.type('#medicare-wages', '$87,500.00', { delay: 50 });
 
-  const medicareWithheld = demo.page.locator('#medicare-withheld');
-  await medicareWithheld.click();
-  await medicareWithheld.type('$1,268.75', { delay: 50 });
+  await demo.page.click('#medicare-withheld');
+  await demo.page.type('#medicare-withheld', '$1,268.75', { delay: 50 });
 
   // Select state
-  await demo.narrate("[calm] Let me select your state...");
+  await demo.narrate("[calm] State selection uses a standard dropdown.");
   const state = demo.page.locator('#state');
   await state.selectOption('CA');
 
-  await demo.narrate("[excited] Great! Your W-2 is complete. Let's move on.");
+  await demo.narrate("[excited] All fields are filled in, so we can continue to the next section.");
 
   // Navigate to Step 2
   await demo.page.click('button:has-text("Continue to 1099")');
@@ -86,7 +78,7 @@ async function run() {
 
   // Step 2: 1099 Income
   await demo.narrate(
-    "[curious] Now, did you have any 1099 income this year? Freelance work, perhaps?"
+    "[thoughtful] Here's the 1099 section. The form fields only appear when needed."
   );
 
   const has1099 = demo.page.locator('#has-1099');
@@ -94,19 +86,17 @@ async function run() {
   await demo.page.waitForTimeout(300);
 
   await demo.narrate(
-    "[thoughtful] Ah, I see you did some consulting on the side. Let's add that."
+    "[excited] See how the form expands with a smooth transition?"
   );
 
-  const payerName = demo.page.locator('#payer-name');
-  await payerName.click();
-  await payerName.type('Freelance Consulting LLC', { delay: 50 });
+  await demo.page.click('#payer-name');
+  await demo.page.type('#payer-name', 'Freelance Consulting LLC', { delay: 50 });
 
-  const income1099NEC = demo.page.locator('#income-1099-nec');
-  await income1099NEC.click();
-  await income1099NEC.type('$8,500.00', { delay: 60 });
+  await demo.page.click('#income-1099-nec');
+  await demo.page.type('#income-1099-nec', '$8,500.00', { delay: 60 });
 
   await demo.narrate(
-    "[calm] Eighty-five hundred in freelance income. Don't forget, you'll owe self-employment tax on this."
+    "[calm] The 1099-NEC field also formats currency. In the next sprint, I'll add support for multiple 1099s."
   );
 
   // Navigate to Step 3
@@ -115,24 +105,24 @@ async function run() {
 
   // Step 3: Deductions
   await demo.narrate(
-    "[excited] Now for my favorite part - deductions! Let's maximize your refund."
+    "[excited] This is the deductions page - probably my favorite feature. Watch this."
   );
 
   await demo.narrate(
-    "[thoughtful] For most people, the standard deduction of fourteen thousand six hundred dollars is the best choice."
+    "[thoughtful] Standard deduction is pre-selected because it applies to most users. The itemized option is there for power users."
   );
 
   // Keep standard deduction (default)
   await demo.page.waitForTimeout(300);
 
   // Check some credits
-  await demo.narrate("[curious] Do you qualify for any tax credits?");
+  await demo.narrate("[curious] Now here's the cool part - tax credits with live calculation.");
 
   const educationCredit = demo.page.locator('#education-credit');
   await educationCredit.click();
 
   await demo.narrate(
-    "[excited] The education credit! Were you taking classes this year? That could be worth up to twenty-five hundred dollars."
+    "[excited] When you check the education credit, it will update the estimated refund on the review page."
   );
 
   await demo.page.waitForTimeout(500);
@@ -143,7 +133,7 @@ async function run() {
 
   // Step 4: Review
   await demo.narrate(
-    "[excited] Alright, let's see how you did this year!"
+    "[excited] And here's the summary view I built. Let me scroll down to show you everything."
   );
 
   // Scroll to show the refund (use ID selector to avoid matching success screen box)
@@ -152,7 +142,7 @@ async function run() {
   await demo.page.waitForTimeout(500);
 
   await demo.narrate(
-    "[excited] Great news! Based on your entries, you're getting a refund of over three thousand dollars!"
+    "[thoughtful] The refund calculation is the sum of all the computations. I added the green styling for positive refunds, red for amounts owed."
   );
 
   // Scroll through the summary
@@ -160,34 +150,35 @@ async function run() {
   await summaryIncome.scrollIntoViewIfNeeded();
 
   await demo.narrate(
-    "[thoughtful] Let's review the breakdown. Your total income was ninety-six thousand dollars, including your W-2 and freelance work."
+    "[calm] The breakdown shows income, deductions, and credits separately. Users can see exactly where each number comes from."
   );
 
   await demo.page.waitForTimeout(500);
 
   await demo.narrate(
-    "[calm] After subtracting your standard deduction and applying the education credit, you're getting money back!"
+    "[curious] Notice the responsive design - this same layout works on mobile too. I'll demo that in the next review."
   );
 
   // File the return
-  await demo.narrate("[excited] Ready to file? Let's submit your return!");
+  await demo.narrate("[excited] Let me show you the submission flow.");
 
   await demo.page.click('button:has-text("File My Return")');
   await demo.page.waitForTimeout(800);
 
-  // Success screen
+  // Success screen - wait for confetti animation to be visible
+  await demo.page.waitForTimeout(500);
   await demo.narrate(
-    "[excited] Congratulations! Your 2024 tax return has been successfully filed!"
+    "[excited] Success! Check out the confetti animation celebrating the filed return. The confirmation number is generated server-side."
   );
 
   await demo.page.waitForTimeout(500);
 
   await demo.narrate(
-    "[calm] You should receive your refund via direct deposit within fourteen to twenty-one days."
+    "[thoughtful] I added the expected timeline information here based on IRS processing guidelines."
   );
 
   await demo.narrate(
-    "[excited] Thank you for using TaxoMatic! Have a wonderful day!"
+    "[calm] That's the full flow! Questions? I'm ready for code review whenever you are."
   );
 
   await demo.page.waitForTimeout(1000);

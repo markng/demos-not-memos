@@ -1,9 +1,9 @@
-import { Narration } from './narration';
-import { generateTTS } from './audio-utils';
-import { TTSResult } from './types';
+import { Narration } from '../../src/narration';
+import { generateTTS } from '../../src/audio-utils';
+import { TTSResult } from '../../src/types';
 
 // Mock the audio-utils module
-jest.mock('./audio-utils');
+jest.mock('../../src/audio-utils');
 
 const mockGenerateTTS = generateTTS as jest.MockedFunction<typeof generateTTS>;
 
