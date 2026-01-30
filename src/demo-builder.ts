@@ -243,8 +243,9 @@ export class NarratedDemo {
     await mkdir(this.tempDir, { recursive: true });
 
     // Initialize sounds directory if sounds are enabled
+    // Use assets/sounds for pre-generated sounds that persist across runs
     if (this.config.sounds) {
-      const soundsDir = join(this.tempDir, 'sounds');
+      const soundsDir = join(__dirname, '..', 'assets', 'sounds');
       initSoundsDir(soundsDir);
     }
 
