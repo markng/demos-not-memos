@@ -44,8 +44,10 @@ export async function concatAudioWithGaps(
     // adelay takes milliseconds, delay both channels
     // Subtract offsetMs to normalize timestamps (first event plays at t=0)
     const adjustedTime = Math.max(0, seg.startTimeMs - offsetMs);
-    // Apply volume reduction only to UI sounds (keypresses, clicks), not narration
-    const volume = seg.type === 'narration' ? 1.0 : 0.05;
+    // Apply volume reduction to UI sounds, with clicks louder than keypresses
+    const volume = seg.type === 'narration' ? 1.0
+                 : seg.type === 'click' ? 0.5
+                 : 0.05;
     return `[${i}]adelay=${adjustedTime}|${adjustedTime},volume=${volume}[a${i}]`;
   });
 

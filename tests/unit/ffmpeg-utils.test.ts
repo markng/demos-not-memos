@@ -51,7 +51,7 @@ describe('ffmpeg-utils', () => {
       expect(mockExec).toHaveBeenCalledTimes(1);
       const command = mockExec.mock.calls[0][0];
       expect(command).toContain('-i "/audio/narration1.mp3"');
-      expect(command).toContain('[0]adelay=0|0,volume=0.3[a0]');
+      expect(command).toContain('[0]adelay=0|0,volume=1[a0]');
       expect(command).toContain('[a0]amix=inputs=1:normalize=0[out]');
       expect(command).toContain('-map "[out]"');
       expect(command).toContain('"/output/combined.wav"');
@@ -88,9 +88,9 @@ describe('ffmpeg-utils', () => {
       expect(command).toContain('-i "/audio/narration1.mp3"');
       expect(command).toContain('-i "/audio/click.wav"');
       expect(command).toContain('-i "/audio/narration2.mp3"');
-      expect(command).toContain('[0]adelay=0|0,volume=0.3[a0]');
-      expect(command).toContain('[1]adelay=2500|2500,volume=0.3[a1]');
-      expect(command).toContain('[2]adelay=3000|3000,volume=0.3[a2]');
+      expect(command).toContain('[0]adelay=0|0,volume=1[a0]');
+      expect(command).toContain('[1]adelay=2500|2500,volume=0.5[a1]');
+      expect(command).toContain('[2]adelay=3000|3000,volume=1[a2]');
       expect(command).toContain('[a0][a1][a2]amix=inputs=3:normalize=0[out]');
     });
 
@@ -115,8 +115,8 @@ describe('ffmpeg-utils', () => {
 
       const command = mockExec.mock.calls[0][0];
       // Filter parts must be joined with semicolons, not empty string
-      // The format should be: [0]adelay=0|0,volume=0.3[a0];[1]adelay=2000|2000,volume=0.3[a1];[a0][a1]amix...
-      expect(command).toContain('[0]adelay=0|0,volume=0.3[a0];[1]adelay=2000|2000,volume=0.3[a1];');
+      // The format should be: [0]adelay=0|0,volume=1[a0];[1]adelay=2000|2000,volume=1[a1];[a0][a1]amix...
+      expect(command).toContain('[0]adelay=0|0,volume=1[a0];[1]adelay=2000|2000,volume=1[a1];');
     });
 
     it('should sort segments by start time', async () => {
@@ -147,9 +147,9 @@ describe('ffmpeg-utils', () => {
       const command = mockExec.mock.calls[0][0];
       // After sorting, first.mp3 should be input 0, second.mp3 input 1, third.mp3 input 2
       expect(command).toContain('-i "/audio/first.mp3" -i "/audio/second.mp3" -i "/audio/third.mp3"');
-      expect(command).toContain('[0]adelay=0|0,volume=0.3[a0]');
-      expect(command).toContain('[1]adelay=2000|2000,volume=0.3[a1]');
-      expect(command).toContain('[2]adelay=5000|5000,volume=0.3[a2]');
+      expect(command).toContain('[0]adelay=0|0,volume=1[a0]');
+      expect(command).toContain('[1]adelay=2000|2000,volume=0.5[a1]');
+      expect(command).toContain('[2]adelay=5000|5000,volume=1[a2]');
     });
 
     it('should handle segments with keypress type', async () => {
@@ -167,7 +167,7 @@ describe('ffmpeg-utils', () => {
 
       const command = mockExec.mock.calls[0][0];
       expect(command).toContain('-i "/audio/keypress.wav"');
-      expect(command).toContain('[0]adelay=1000|1000,volume=0.3[a0]');
+      expect(command).toContain('[0]adelay=1000|1000,volume=0.05[a0]');
     });
 
     it('should handle ffmpeg execution error', async () => {
@@ -245,7 +245,7 @@ describe('ffmpeg-utils', () => {
       await concatAudioWithGaps(segments, '/output/combined.wav');
 
       const command = mockExec.mock.calls[0][0];
-      expect(command).toContain('[0]adelay=3600000|3600000,volume=0.3[a0]');
+      expect(command).toContain('[0]adelay=3600000|3600000,volume=1[a0]');
     });
 
     it('should log truncated message when more than 10 segments', async () => {
