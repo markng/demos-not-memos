@@ -5,10 +5,22 @@ import * as ffmpegUtils from './ffmpeg-utils';
 import * as soundsModule from './sounds';
 
 // Mock sounds module
+let letterVariantCounter = 0;
+let spaceVariantCounter = 0;
 jest.mock('./sounds', () => ({
   initSoundsDir: jest.fn(),
   generateSound: jest.fn().mockResolvedValue({ path: '/tmp/sounds/click.mp3', durationMs: 100 }),
   clearSoundCache: jest.fn(),
+  getVariantSoundType: jest.fn().mockImplementation((baseType: string) => {
+    if (baseType === 'keypress-letter') {
+      letterVariantCounter = (letterVariantCounter % 5) + 1;
+      return `keypress-letter-${letterVariantCounter}`;
+    } else if (baseType === 'keypress-space') {
+      spaceVariantCounter = (spaceVariantCounter % 5) + 1;
+      return `keypress-space-${spaceVariantCounter}`;
+    }
+    return baseType;
+  }),
 }));
 
 // Mock playwright
@@ -20,6 +32,7 @@ jest.mock('playwright', () => {
   const mockLocator = {
     click: jest.fn().mockResolvedValue(undefined),
     fill: jest.fn().mockResolvedValue(undefined),
+    scrollIntoViewIfNeeded: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockPage = {
@@ -763,10 +776,10 @@ describe('NarratedDemo', () => {
       const demo = new NarratedDemo(soundsConfig);
       await demo.start();
 
-      // Mock generateSound to return different results for click vs keypress
-      (soundsModule.generateSound as jest.Mock).mockImplementation((type) => {
-        if (type === 'keypress') {
-          return Promise.resolve({ path: '/tmp/sounds/keypress.mp3', durationMs: 50 });
+      // Mock generateSound to return results for letter variant sounds
+      (soundsModule.generateSound as jest.Mock).mockImplementation((type: string) => {
+        if (type.startsWith('keypress-letter')) {
+          return Promise.resolve({ path: `/tmp/sounds/${type}.mp3`, durationMs: 50 });
         }
         return Promise.resolve({ path: '/tmp/sounds/click.mp3', durationMs: 100 });
       });
@@ -776,13 +789,16 @@ describe('NarratedDemo', () => {
 
       await demo.finish();
 
-      // Should have generated keypress sound (called once per character)
-      expect(soundsModule.generateSound).toHaveBeenCalledWith('keypress');
-      // Should have 2 keypress segments (one per character)
+      // Should have generated keypress-letter variant sounds (one per character)
+      // The type() method uses getSoundTypeForChar which returns keypress-letter-N variants
+      expect(soundsModule.generateSound).toHaveBeenCalledWith(
+        expect.stringMatching(/^keypress-letter-[1-5]$/)
+      );
+      // Should have 2 keypress segments (one per character) with letter variant types
       expect(ffmpegUtils.concatAudioWithGaps).toHaveBeenCalledWith(
         expect.arrayContaining([
-          expect.objectContaining({ type: 'keypress' }),
-          expect.objectContaining({ type: 'keypress' }),
+          expect.objectContaining({ type: expect.stringMatching(/^keypress-letter-[1-5]$/) }),
+          expect.objectContaining({ type: expect.stringMatching(/^keypress-letter-[1-5]$/) }),
         ]),
         expect.any(String)
       );
@@ -820,6 +836,103 @@ describe('NarratedDemo', () => {
       await demo.finish();
 
       expect(soundsModule.generateSound).not.toHaveBeenCalled();
+    });
+
+    it('should handle text with common digraphs (th, er, etc.) for faster typing', async () => {
+      const demo = new NarratedDemo(soundsConfig);
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      // 'the' contains the fast digraph 'th'
+      await page.type('#input', 'the');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      // Should still type all characters
+      expect(mockPage.type).toHaveBeenCalledTimes(3);
+    });
+
+    it('should handle text with spaces for pause after space', async () => {
+      const demo = new NarratedDemo(soundsConfig);
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      // Type 'a bc' so that when typing 'c', prevChar=' ' triggers the pause
+      // Delay calculations: (''→'a'), ('a'→' '), (' '→'b') <-- triggers line 88
+      await page.type('#input', 'a bc');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      // Should type all 4 characters
+      expect(mockPage.type).toHaveBeenCalledTimes(4);
+    });
+
+    it('should handle text with punctuation for longer pause after punctuation', async () => {
+      const demo = new NarratedDemo(soundsConfig);
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      // Type '.ab' so that when calculating delay before 'b', prevChar='.' triggers punctuation pause
+      // Delay calculations: (''→'.'), ('.'→'a') <-- triggers line 93
+      await page.type('#input', '.ab');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      // Should type all 3 characters
+      expect(mockPage.type).toHaveBeenCalledTimes(3);
+    });
+
+    it('should handle return/newline characters with keypress-return sound', async () => {
+      const demo = new NarratedDemo(soundsConfig);
+      await demo.start();
+
+      (soundsModule.generateSound as jest.Mock).mockImplementation((type: string) => {
+        if (type === 'keypress-return') {
+          return Promise.resolve({ path: '/tmp/sounds/keypress-return.mp3', durationMs: 60 });
+        }
+        if (type.startsWith('keypress-letter')) {
+          return Promise.resolve({ path: `/tmp/sounds/${type}.mp3`, durationMs: 50 });
+        }
+        return Promise.resolve({ path: '/tmp/sounds/click.mp3', durationMs: 100 });
+      });
+
+      const page = demo.page as SoundEnabledPage;
+      // Type text with a newline character
+      await page.type('#input', 'a\n');
+
+      await demo.finish();
+
+      // Should have generated keypress-return sound for the newline
+      expect(soundsModule.generateSound).toHaveBeenCalledWith('keypress-return');
+    });
+
+    it('should handle space characters with keypress-space sound', async () => {
+      const demo = new NarratedDemo(soundsConfig);
+      await demo.start();
+
+      (soundsModule.generateSound as jest.Mock).mockImplementation((type: string) => {
+        if (type.startsWith('keypress-space')) {
+          return Promise.resolve({ path: `/tmp/sounds/${type}.mp3`, durationMs: 55 });
+        }
+        if (type.startsWith('keypress-letter')) {
+          return Promise.resolve({ path: `/tmp/sounds/${type}.mp3`, durationMs: 50 });
+        }
+        return Promise.resolve({ path: '/tmp/sounds/click.mp3', durationMs: 100 });
+      });
+
+      const page = demo.page as SoundEnabledPage;
+      // Type text with a space
+      await page.type('#input', 'a b');
+
+      await demo.finish();
+
+      // Should have generated keypress-space variant sound for the space
+      expect(soundsModule.generateSound).toHaveBeenCalledWith(
+        expect.stringMatching(/^keypress-space-[1-5]$/)
+      );
     });
   });
 
@@ -875,7 +988,12 @@ describe('NarratedDemo', () => {
       const mockBrowser = await chromium.launch();
       const mockContext = await mockBrowser.newContext();
       const mockPage = await mockContext.newPage();
-      expect(mockPage.type).toHaveBeenCalledWith('#input', 'test');
+      // SoundEnabledPage types one character at a time to record keypress sounds
+      expect(mockPage.type).toHaveBeenCalledTimes(4);
+      expect(mockPage.type).toHaveBeenNthCalledWith(1, '#input', 't');
+      expect(mockPage.type).toHaveBeenNthCalledWith(2, '#input', 'e');
+      expect(mockPage.type).toHaveBeenNthCalledWith(3, '#input', 's');
+      expect(mockPage.type).toHaveBeenNthCalledWith(4, '#input', 't');
     });
 
     it('should delegate fill to original page', async () => {
