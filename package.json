@@ -14,7 +14,8 @@
     "test:coverage": "jest --coverage",
     "test:mutation": "stryker run",
     "lint": "eslint src --ext .ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
     "elevenlabs": "^1.0.0",
