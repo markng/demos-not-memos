@@ -37,7 +37,7 @@ ffprobe -version
 ## Installation
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/markng/demos-not-memos.git
 cd demos-not-memos
 npm install
 ```

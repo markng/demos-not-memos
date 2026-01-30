@@ -99,7 +99,7 @@ export interface DemoState {
  */
 export const DEFAULT_CONFIG = {
   viewport: { width: 1280, height: 720 },
-  voice: 'Rachel',
+  voice: 'Elli',
   model: 'eleven_v3',
   sounds: false,
 } as const;
