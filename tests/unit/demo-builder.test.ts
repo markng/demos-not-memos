@@ -93,6 +93,9 @@ jest.mock('../../src/narration', () => {
       return {
         generate: jest.fn().mockResolvedValue(undefined),
         waitUntilComplete: jest.fn().mockResolvedValue(undefined),
+        whileDoing: jest.fn().mockImplementation(async (action: () => Promise<void>) => {
+          await action();
+        }),
         getAudioSegment: jest.fn().mockReturnValue({
           path: `${outputDir}/${segmentId}.mp3`,
           startTimeMs,
@@ -420,6 +423,151 @@ describe('NarratedDemo', () => {
       expect(narration).toBeDefined();
       expect(narration.generate).toBeDefined();
       expect(narration.waitUntilComplete).toBeDefined();
+    });
+  });
+
+  describe('narrateAsync()', () => {
+    it('should throw error if demo not started', async () => {
+      const demo = new NarratedDemo(defaultConfig);
+
+      await expect(demo.narrateAsync('Hello world')).rejects.toThrow(
+        'Demo not started. Call start() first.'
+      );
+    });
+
+    it('should create Narration with correct parameters', async () => {
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+
+      await demo.narrateAsync('Hello async');
+
+      expect(Narration).toHaveBeenCalledWith(
+        'Hello async',
+        DEFAULT_CONFIG.voice,
+        DEFAULT_CONFIG.model,
+        expect.any(Number),
+        expect.stringContaining('.demo-temp'),
+        'narration-1'
+      );
+    });
+
+    it('should call generate but NOT waitUntilComplete', async () => {
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+
+      const narration = await demo.narrateAsync('Hello async');
+
+      expect(narration.generate).toHaveBeenCalled();
+      expect(narration.waitUntilComplete).not.toHaveBeenCalled();
+    });
+
+    it('should add audio segment to state', async () => {
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+
+      const narration = await demo.narrateAsync('Hello async');
+
+      expect(narration.getAudioSegment).toHaveBeenCalled();
+    });
+
+    it('should return Narration that can be used with whileDoing', async () => {
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+
+      const narration = await demo.narrateAsync('Hello async');
+
+      expect(narration).toBeDefined();
+      expect(narration.generate).toBeDefined();
+      // Narration mock has whileDoing method available
+    });
+
+    it('should increment segment ID for each narrateAsync call', async () => {
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+
+      await demo.narrateAsync('First');
+      await demo.narrateAsync('Second');
+
+      expect(Narration).toHaveBeenNthCalledWith(
+        1,
+        'First',
+        expect.any(String),
+        expect.any(String),
+        expect.any(Number),
+        expect.any(String),
+        'narration-1'
+      );
+      expect(Narration).toHaveBeenNthCalledWith(
+        2,
+        'Second',
+        expect.any(String),
+        expect.any(String),
+        expect.any(Number),
+        expect.any(String),
+        'narration-2'
+      );
+    });
+  });
+
+  describe('doWhileNarrating()', () => {
+    it('should throw error if demo not started', async () => {
+      const demo = new NarratedDemo(defaultConfig);
+
+      await expect(
+        demo.doWhileNarrating('Hello', async () => {})
+      ).rejects.toThrow('Demo not started. Call start() first.');
+    });
+
+    it('should create narration and execute action concurrently', async () => {
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+
+      const actionExecuted = jest.fn();
+      await demo.doWhileNarrating('While doing action', async () => {
+        actionExecuted();
+      });
+
+      // Narration should have been created
+      expect(Narration).toHaveBeenCalledWith(
+        'While doing action',
+        expect.any(String),
+        expect.any(String),
+        expect.any(Number),
+        expect.any(String),
+        'narration-1'
+      );
+
+      // Action should have been executed
+      expect(actionExecuted).toHaveBeenCalled();
+    });
+
+    it('should call generate on narration', async () => {
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+
+      await demo.doWhileNarrating('Test', async () => {});
+
+      // Get the mock narration
+      const mockNarration = (Narration as jest.Mock).mock.results[0].value;
+      expect(mockNarration.generate).toHaveBeenCalled();
+    });
+
+    it('should add audio segment to state', async () => {
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+
+      await demo.doWhileNarrating('Test', async () => {});
+
+      // Verify audio segment was added by checking finish() behavior
+      await demo.finish();
+
+      expect(ffmpegUtils.concatAudioWithGaps).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ type: 'narration' }),
+        ]),
+        expect.any(String),
+        expect.any(Number)
+      );
     });
 
     it('should pass reasonable startTimeMs to Narration (not absurdly large)', async () => {

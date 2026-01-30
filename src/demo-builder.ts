@@ -356,6 +356,55 @@ export class NarratedDemo {
   }
 
   /**
+   * Start narration and return the Narration object without waiting for completion.
+   * Use this when you need to perform actions while narration plays.
+   * @example
+   * const narration = await demo.narrateAsync("Watch as I click...");
+   * await narration.whileDoing(async () => {
+   *   await demo.page.click('#button');
+   * });
+   */
+  async narrateAsync(text: string): Promise<Narration> {
+    if (!this.state.started) {
+      throw new Error('Demo not started. Call start() first.');
+    }
+
+    const segmentId = `narration-${++this.narrationCounter}`;
+    const startTimeMs = Date.now() - this.state.startTime;
+
+    const narration = new Narration(
+      text,
+      this.config.voice,
+      this.config.model,
+      startTimeMs,
+      this.tempDir,
+      segmentId
+    );
+
+    await narration.generate();
+
+    // Add to audio segments
+    this.state.audioSegments.push(narration.getAudioSegment());
+
+    // Return without waiting - caller can use whileDoing() or waitUntilComplete()
+    return narration;
+  }
+
+  /**
+   * Narrate text while simultaneously performing an action.
+   * The narration and action run concurrently, and the method completes when both finish.
+   * @example
+   * await demo.doWhileNarrating(
+   *   "Watch as I click the button",
+   *   async () => { await demo.page.click('#button'); }
+   * );
+   */
+  async doWhileNarrating(text: string, action: () => Promise<void>): Promise<void> {
+    const narration = await this.narrateAsync(text);
+    await narration.whileDoing(action);
+  }
+
+  /**
    * Process pending sound timestamps and add them as audio segments
    */
   private async processSoundTimestamps(): Promise<void> {

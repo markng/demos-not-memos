@@ -115,11 +115,14 @@ async function run() {
   // Keep standard deduction (default)
   await demo.page.waitForTimeout(300);
 
-  // Check some credits
-  await demo.narrate("[curious] Now here's the cool part - tax credits with live calculation.");
-
-  const educationCredit = demo.page.locator('#education-credit');
-  await educationCredit.click();
+  // Check some credits - demonstrate doWhileNarrating for concurrent action
+  await demo.doWhileNarrating(
+    "[curious] Now here's the cool part - tax credits with live calculation.",
+    async () => {
+      const educationCredit = demo.page.locator('#education-credit');
+      await educationCredit.click();
+    }
+  );
 
   await demo.narrate(
     "[excited] When you check the education credit, it will update the estimated refund on the review page."
