@@ -1,5 +1,9 @@
 # demos-not-memos
 
+[![npm version](https://img.shields.io/npm/v/demos-not-memos.svg)](https://www.npmjs.com/package/demos-not-memos)
+[![CI](https://github.com/markng/demos-not-memos/actions/workflows/test.yml/badge.svg)](https://github.com/markng/demos-not-memos/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A TypeScript DSL for creating narrated demo videos with synchronized voiceover using ElevenLabs TTS and Playwright browser automation.
 
 **Write code, not scripts.** Instead of manually recording screen captures and voiceovers, define your demo programmatically and let the DSL handle timing, audio generation, and video production.
@@ -151,6 +155,42 @@ Generate and play a narration segment. The method waits for the speech to comple
 
 ```typescript
 await demo.narrate("This feature helps you save time.");
+```
+
+##### `narrateAsync(text: string): Promise<Narration>`
+
+Start narration and return the Narration object without waiting for audio to complete. Use this when you need to perform actions while narration plays.
+
+```typescript
+const narration = await demo.narrateAsync("Watch as I click the button...");
+await narration.whileDoing(async () => {
+  await demo.page.click('#button');
+});
+```
+
+##### `doWhileNarrating(text: string, action: () => Promise<void>): Promise<void>`
+
+Convenience method that narrates text while simultaneously performing an action. The narration and action run concurrently, and the method completes when both finish.
+
+```typescript
+// Perform actions while narrating - great for "watch as I..." scenarios
+await demo.doWhileNarrating(
+  "Watch as I fill in the form and submit",
+  async () => {
+    await demo.page.type('#email', 'user@example.com');
+    await demo.page.click('#submit');
+  }
+);
+```
+
+This is equivalent to:
+
+```typescript
+const narration = await demo.narrateAsync("Watch as I fill in the form...");
+await narration.whileDoing(async () => {
+  await demo.page.type('#email', 'user@example.com');
+  await demo.page.click('#submit');
+});
 ```
 
 ##### `finish(): Promise<string>`
