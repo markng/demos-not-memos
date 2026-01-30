@@ -1,13 +1,13 @@
-import { NarratedDemo, SoundEnabledPage } from './demo-builder';
-import { DemoConfig, DEFAULT_CONFIG, AudioSegment } from './types';
-import { Narration } from './narration';
-import * as ffmpegUtils from './ffmpeg-utils';
-import * as soundsModule from './sounds';
+import { NarratedDemo, SoundEnabledPage } from '../../src/demo-builder';
+import { DemoConfig, DEFAULT_CONFIG, AudioSegment } from '../../src/types';
+import { Narration } from '../../src/narration';
+import * as ffmpegUtils from '../../src/ffmpeg-utils';
+import * as soundsModule from '../../src/sounds';
 
 // Mock sounds module
 let letterVariantCounter = 0;
 let spaceVariantCounter = 0;
-jest.mock('./sounds', () => ({
+jest.mock('../../src/sounds', () => ({
   initSoundsDir: jest.fn(),
   generateSound: jest.fn().mockResolvedValue({ path: '/tmp/sounds/click.mp3', durationMs: 100 }),
   clearSoundCache: jest.fn(),
@@ -45,6 +45,8 @@ jest.mock('playwright', () => {
     locator: jest.fn().mockReturnValue(mockLocator),
     waitForSelector: jest.fn().mockResolvedValue(undefined),
     waitForTimeout: jest.fn().mockResolvedValue(undefined),
+    waitForLoadState: jest.fn().mockResolvedValue(undefined),
+    evaluate: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockContext = {
@@ -85,7 +87,7 @@ jest.mock('util', () => ({
 }));
 
 // Mock Narration class
-jest.mock('./narration', () => {
+jest.mock('../../src/narration', () => {
   return {
     Narration: jest.fn().mockImplementation((text, voice, model, startTimeMs, outputDir, segmentId) => {
       return {
@@ -104,9 +106,11 @@ jest.mock('./narration', () => {
 });
 
 // Mock ffmpeg-utils
-jest.mock('./ffmpeg-utils', () => ({
+jest.mock('../../src/ffmpeg-utils', () => ({
   concatAudioWithGaps: jest.fn().mockResolvedValue('/tmp/combined.wav'),
   mergeAudioVideo: jest.fn().mockResolvedValue('/tmp/output.mp4'),
+  detectSyncFrameRange: jest.fn().mockResolvedValue({ firstSyncFrame: -1, lastSyncFrame: -1, frameDurationMs: 40 }),
+  trimSyncFrames: jest.fn().mockResolvedValue(undefined),
 }));
 
 describe('NarratedDemo', () => {
@@ -497,7 +501,8 @@ describe('NarratedDemo', () => {
         expect.arrayContaining([
           expect.objectContaining({ type: 'narration' }),
         ]),
-        expect.stringContaining('combined-audio.wav')
+        expect.stringContaining('combined-audio.wav'),
+        expect.any(Number)
       );
     });
 
@@ -573,6 +578,76 @@ describe('NarratedDemo', () => {
 
       expect(result).toBe(defaultConfig.output);
     });
+
+    it('should detect and trim sync frames when sync marker is found', async () => {
+      // Mock detectSyncFrameRange to return a found sync marker
+      (ffmpegUtils.detectSyncFrameRange as jest.Mock).mockResolvedValueOnce({
+        firstSyncFrame: 5,
+        lastSyncFrame: 15,
+        frameDurationMs: 40,
+      });
+
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.narrate('Hello world');
+
+      await demo.finish();
+
+      // Should have called trimSyncFrames with correct parameters
+      expect(ffmpegUtils.trimSyncFrames).toHaveBeenCalledWith(
+        '/tmp/video/recorded.webm',
+        expect.stringContaining('trimmed-video.mp4'),
+        16, // lastSyncFrame + 1
+        40  // frameDurationMs
+      );
+    });
+
+    it('should use trimmed video path when sync marker is found and audio present', async () => {
+      // Mock to return found sync marker
+      (ffmpegUtils.detectSyncFrameRange as jest.Mock).mockResolvedValueOnce({
+        firstSyncFrame: 2,
+        lastSyncFrame: 10,
+        frameDurationMs: 33.33,
+      });
+
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.narrate('Hello world');
+
+      await demo.finish();
+
+      // Should use trimmed video path in mergeAudioVideo
+      expect(ffmpegUtils.mergeAudioVideo).toHaveBeenCalledWith(
+        expect.stringContaining('trimmed-video.mp4'),
+        expect.stringContaining('combined-audio.wav'),
+        defaultConfig.output
+      );
+    });
+
+    it('should pass correct audio offset when sync marker is found', async () => {
+      // Mock to return found sync marker
+      // firstSyncFrame: 4, frameDurationMs: 40ms -> syncFrameOffsetMs = 160ms
+      // lastSyncFrame: 11 -> framesToTrim: 12 -> trimDurationMs = 480ms
+      // audioOffset = 480 - 160 = 320ms
+      (ffmpegUtils.detectSyncFrameRange as jest.Mock).mockResolvedValueOnce({
+        firstSyncFrame: 4,
+        lastSyncFrame: 11,
+        frameDurationMs: 40,
+      });
+
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.narrate('Hello world');
+
+      await demo.finish();
+
+      // Should pass audioOffset to concatAudioWithGaps
+      expect(ffmpegUtils.concatAudioWithGaps).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.any(String),
+        320 // trimDurationMs (480) - syncFrameOffsetMs (160)
+      );
+    });
   });
 
   describe('getElapsedTime()', () => {
@@ -626,6 +701,9 @@ describe('NarratedDemo', () => {
         goto: jest.fn().mockResolvedValue(undefined),
         close: jest.fn().mockResolvedValue(undefined),
         video: jest.fn().mockReturnValue(null),
+        waitForLoadState: jest.fn().mockResolvedValue(undefined),
+        waitForTimeout: jest.fn().mockResolvedValue(undefined),
+        evaluate: jest.fn().mockResolvedValue(undefined),
       };
 
       const mockContext = {
@@ -657,6 +735,9 @@ describe('NarratedDemo', () => {
         goto: jest.fn().mockResolvedValue(undefined),
         close: jest.fn().mockResolvedValue(undefined),
         video: jest.fn().mockReturnValue(null),
+        waitForLoadState: jest.fn().mockResolvedValue(undefined),
+        waitForTimeout: jest.fn().mockResolvedValue(undefined),
+        evaluate: jest.fn().mockResolvedValue(undefined),
       };
 
       const mockContext = {
@@ -705,7 +786,8 @@ describe('NarratedDemo', () => {
           expect.objectContaining({ type: 'narration' }),
           expect.objectContaining({ type: 'narration' }),
         ]),
-        expect.any(String)
+        expect.any(String),
+        expect.any(Number)
       );
     });
   });
@@ -768,7 +850,8 @@ describe('NarratedDemo', () => {
         expect.arrayContaining([
           expect.objectContaining({ type: 'click' }),
         ]),
-        expect.any(String)
+        expect.any(String),
+        expect.any(Number)
       );
     });
 
@@ -800,7 +883,8 @@ describe('NarratedDemo', () => {
           expect.objectContaining({ type: expect.stringMatching(/^keypress-letter-[1-5]$/) }),
           expect.objectContaining({ type: expect.stringMatching(/^keypress-letter-[1-5]$/) }),
         ]),
-        expect.any(String)
+        expect.any(String),
+        expect.any(Number)
       );
     });
 

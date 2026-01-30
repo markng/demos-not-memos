@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaxoMatic 2024 - File Your Return</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #1a365d 0%, #2d3748 100%);
+      min-height: 100vh;
+      color: #2d3748;
+    }
+
+    header {
+      background: white;
+      padding: 16px 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: bold;
+      color: #0066cc;
+    }
+
+    .logo span {
+      color: #e53e3e;
+    }
+
+    .user-info {
+      color: #4a5568;
+      font-size: 14px;
+    }
+
+    main {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+
+    .progress-bar {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 32px;
+      position: relative;
+    }
+
+    .progress-bar::before {
+      content: '';
+      position: absolute;
+      top: 15px;
+      left: 50px;
+      right: 50px;
+      height: 4px;
+      background: #e2e8f0;
+      z-index: 0;
+    }
+
+    .progress-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      z-index: 1;
+    }
+
+    .step-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #e2e8f0;
+      color: #718096;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .step-circle.active {
+      background: #0066cc;
+      color: white;
+    }
+
+    .step-circle.completed {
+      background: #38a169;
+      color: white;
+    }
+
+    .step-label {
+      font-size: 12px;
+      color: white;
+      font-weight: 500;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+
+    .card h2 {
+      color: #1a365d;
+      margin-bottom: 8px;
+      font-size: 24px;
+    }
+
+    .card-subtitle {
+      color: #718096;
+      margin-bottom: 24px;
+      font-size: 14px;
+    }
+
+    .form-section {
+      display: none;
+    }
+
+    .form-section.active {
+      display: block;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 500;
+      color: #4a5568;
+      font-size: 14px;
+    }
+
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #0066cc;
+      box-shadow: 0 0 0 3px rgba(0,102,204,0.1);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .form-row-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+
+    .btn {
+      padding: 14px 28px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #0066cc;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #0052a3;
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #4a5568;
+    }
+
+    .btn-secondary:hover {
+      background: #cbd5e0;
+    }
+
+    .btn-success {
+      background: #38a169;
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #2f855a;
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    /* Review Section Styles */
+    .summary-section {
+      background: #f7fafc;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .summary-section h3 {
+      color: #2d3748;
+      font-size: 16px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 14px;
+    }
+
+    .summary-row .label {
+      color: #718096;
+    }
+
+    .summary-row .value {
+      color: #2d3748;
+      font-weight: 500;
+    }
+
+    .refund-box {
+      background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+      color: white;
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      margin: 24px 0;
+    }
+
+    .refund-box.owed {
+      background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+    }
+
+    .refund-label {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-bottom: 8px;
+    }
+
+    .refund-amount {
+      font-size: 48px;
+      font-weight: bold;
+    }
+
+    .info-note {
+      background: #ebf8ff;
+      border-left: 4px solid #0066cc;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      border-radius: 0 8px 8px 0;
+      font-size: 14px;
+      color: #2d3748;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* Animation for step transitions */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .form-section.active {
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    .success-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+    }
+
+    .success-message {
+      text-align: center;
+      padding: 20px;
+    }
+
+    .success-message h2 {
+      color: #38a169;
+    }
+
+    /* Confetti animation */
+    .confetti-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 1000;
+    }
+
+    .confetti {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      opacity: 0;
+    }
+
+    .confetti.animate {
+      animation: confetti-fall 3s ease-out forwards;
+    }
+
+    @keyframes confetti-fall {
+      0% {
+        opacity: 1;
+        transform: translateY(-20px) rotate(0deg);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(100vh) rotate(720deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="confetti-container" id="confetti-container"></div>
+  <header>
+    <div class="logo">Taxo<span>Matic</span> 2024</div>
+    <div class="user-info">Filing for: John Smith | SSN: ***-**-4567</div>
+  </header>
+
+  <main>
+    <div class="progress-bar">
+      <div class="progress-step">
+        <div class="step-circle active" id="step1-circle">1</div>
+        <span class="step-label">W-2 Income</span>
+      </div>
+      <div class="progress-step">
+        <div class="step-circle" id="step2-circle">2</div>
+        <span class="step-label">1099 Income</span>
+      </div>
+      <div class="progress-step">
+        <div class="step-circle" id="step3-circle">3</div>
+        <span class="step-label">Deductions</span>
+      </div>
+      <div class="progress-step">
+        <div class="step-circle" id="step4-circle">4</div>
+        <span class="step-label">Review</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <!-- Step 1: W-2 Information -->
+      <div class="form-section active" id="step1">
+        <h2>W-2 Wage and Tax Statement</h2>
+        <p class="card-subtitle">Enter the information from your W-2 form from your employer.</p>
+
+        <div class="info-note">
+          Tip: You can find your W-2 in your employer's payroll portal or it was mailed to you by January 31st.
+        </div>
+
+        <div class="form-group">
+          <label for="employer-name">Employer Name (Box c)</label>
+          <input type="text" id="employer-name" placeholder="e.g., Acme Corporation">
+        </div>
+
+        <div class="form-group">
+          <label for="employer-ein">Employer EIN (Box b)</label>
+          <input type="text" id="employer-ein" placeholder="XX-XXXXXXX">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="wages">Wages, Tips, Other Compensation (Box 1)</label>
+            <input type="text" id="wages" placeholder="$0.00">
+          </div>
+          <div class="form-group">
+            <label for="federal-withheld">Federal Income Tax Withheld (Box 2)</label>
+            <input type="text" id="federal-withheld" placeholder="$0.00">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="social-security-wages">Social Security Wages (Box 3)</label>
+            <input type="text" id="social-security-wages" placeholder="$0.00">
+          </div>
+          <div class="form-group">
+            <label for="social-security-withheld">Social Security Tax Withheld (Box 4)</label>
+            <input type="text" id="social-security-withheld" placeholder="$0.00">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="medicare-wages">Medicare Wages (Box 5)</label>
+            <input type="text" id="medicare-wages" placeholder="$0.00">
+          </div>
+          <div class="form-group">
+            <label for="medicare-withheld">Medicare Tax Withheld (Box 6)</label>
+            <input type="text" id="medicare-withheld" placeholder="$0.00">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="state">State (Box 15)</label>
+          <select id="state">
+            <option value="">Select state...</option>
+            <option value="CA">California</option>
+            <option value="NY">New York</option>
+            <option value="TX">Texas</option>
+            <option value="FL">Florida</option>
+            <option value="WA">Washington</option>
+          </select>
+        </div>
+
+        <div class="form-actions">
+          <div></div>
+          <button class="btn btn-primary" onclick="goToStep(2)">Continue to 1099 Income</button>
+        </div>
+      </div>
+
+      <!-- Step 2: 1099 Income -->
+      <div class="form-section" id="step2">
+        <h2>1099 Income</h2>
+        <p class="card-subtitle">Report any freelance, contract, or other miscellaneous income.</p>
+
+        <div class="info-note">
+          Include any 1099-NEC, 1099-MISC, or 1099-K forms you received for 2024.
+        </div>
+
+        <div class="form-group">
+          <label for="has-1099">Did you receive any 1099 income in 2024?</label>
+          <select id="has-1099" onchange="toggle1099Fields()">
+            <option value="no">No, I did not receive any 1099 income</option>
+            <option value="yes">Yes, I have 1099 income to report</option>
+          </select>
+        </div>
+
+        <div id="income-1099-fields" style="display: none;">
+          <div class="form-group">
+            <label for="payer-name">Payer Name</label>
+            <input type="text" id="payer-name" placeholder="e.g., Freelance Client LLC">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="income-1099-nec">1099-NEC Amount (Box 1)</label>
+              <input type="text" id="income-1099-nec" placeholder="$0.00">
+            </div>
+            <div class="form-group">
+              <label for="income-1099-misc">1099-MISC Amount (Box 7)</label>
+              <input type="text" id="income-1099-misc" placeholder="$0.00">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="federal-withheld-1099">Federal Tax Withheld (if any)</label>
+            <input type="text" id="federal-withheld-1099" placeholder="$0.00">
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn btn-secondary" onclick="goToStep(1)">Back to W-2</button>
+          <button class="btn btn-primary" onclick="goToStep(3)">Continue to Deductions</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Deductions -->
+      <div class="form-section" id="step3">
+        <h2>Deductions</h2>
+        <p class="card-subtitle">Maximize your refund by claiming all eligible deductions.</p>
+
+        <div class="form-group">
+          <label for="deduction-type">Choose your deduction method</label>
+          <select id="deduction-type" onchange="toggleDeductionFields()">
+            <option value="standard">Standard Deduction ($14,600 for Single / $29,200 for Married Filing Jointly)</option>
+            <option value="itemized">Itemize my deductions</option>
+          </select>
+        </div>
+
+        <div id="itemized-fields" style="display: none;">
+          <div class="form-group">
+            <label for="mortgage-interest">Mortgage Interest (Form 1098)</label>
+            <input type="text" id="mortgage-interest" placeholder="$0.00">
+          </div>
+
+          <div class="form-group">
+            <label for="property-taxes">State and Local Property Taxes</label>
+            <input type="text" id="property-taxes" placeholder="$0.00">
+          </div>
+
+          <div class="form-group">
+            <label for="charitable">Charitable Contributions</label>
+            <input type="text" id="charitable" placeholder="$0.00">
+          </div>
+
+          <div class="form-group">
+            <label for="medical">Medical Expenses (exceeding 7.5% of AGI)</label>
+            <input type="text" id="medical" placeholder="$0.00">
+          </div>
+        </div>
+
+        <h3 style="margin-top: 24px; margin-bottom: 16px; color: #2d3748;">Tax Credits</h3>
+
+        <div class="checkbox-group" style="margin-bottom: 12px;">
+          <input type="checkbox" id="child-credit">
+          <label for="child-credit">Child Tax Credit (up to $2,000 per qualifying child)</label>
+        </div>
+
+        <div class="checkbox-group" style="margin-bottom: 12px;">
+          <input type="checkbox" id="education-credit">
+          <label for="education-credit">Education Credits (American Opportunity or Lifetime Learning)</label>
+        </div>
+
+        <div class="checkbox-group" style="margin-bottom: 12px;">
+          <input type="checkbox" id="energy-credit">
+          <label for="energy-credit">Energy Efficient Home Improvement Credit</label>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn btn-secondary" onclick="goToStep(2)">Back to 1099</button>
+          <button class="btn btn-primary" onclick="goToStep(4)">Review My Return</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Review -->
+      <div class="form-section" id="step4">
+        <h2>Review Your Return</h2>
+        <p class="card-subtitle">Please review all information before filing.</p>
+
+        <div class="refund-box" id="refund-box">
+          <div class="refund-label">Your Estimated Federal Refund</div>
+          <div class="refund-amount" id="refund-amount">$3,247</div>
+        </div>
+
+        <div class="summary-section">
+          <h3>Income Summary</h3>
+          <div class="summary-row">
+            <span class="label">W-2 Wages</span>
+            <span class="value" id="summary-wages">$0.00</span>
+          </div>
+          <div class="summary-row">
+            <span class="label">1099 Income</span>
+            <span class="value" id="summary-1099">$0.00</span>
+          </div>
+          <div class="summary-row">
+            <span class="label"><strong>Total Income</strong></span>
+            <span class="value" id="summary-total-income"><strong>$0.00</strong></span>
+          </div>
+        </div>
+
+        <div class="summary-section">
+          <h3>Tax Withholding</h3>
+          <div class="summary-row">
+            <span class="label">Federal Tax Withheld (W-2)</span>
+            <span class="value" id="summary-withheld-w2">$0.00</span>
+          </div>
+          <div class="summary-row">
+            <span class="label">Federal Tax Withheld (1099)</span>
+            <span class="value" id="summary-withheld-1099">$0.00</span>
+          </div>
+          <div class="summary-row">
+            <span class="label"><strong>Total Withholding</strong></span>
+            <span class="value" id="summary-total-withheld"><strong>$0.00</strong></span>
+          </div>
+        </div>
+
+        <div class="summary-section">
+          <h3>Deductions & Credits</h3>
+          <div class="summary-row">
+            <span class="label">Deduction Type</span>
+            <span class="value" id="summary-deduction-type">Standard</span>
+          </div>
+          <div class="summary-row">
+            <span class="label">Deduction Amount</span>
+            <span class="value" id="summary-deduction-amount">$14,600</span>
+          </div>
+          <div class="summary-row">
+            <span class="label">Tax Credits</span>
+            <span class="value" id="summary-credits">$0.00</span>
+          </div>
+        </div>
+
+        <div class="summary-section">
+          <h3>Tax Calculation</h3>
+          <div class="summary-row">
+            <span class="label">Taxable Income</span>
+            <span class="value" id="summary-taxable-income">$0.00</span>
+          </div>
+          <div class="summary-row">
+            <span class="label">Estimated Tax</span>
+            <span class="value" id="summary-estimated-tax">$0.00</span>
+          </div>
+          <div class="summary-row">
+            <span class="label">Less: Withholding & Credits</span>
+            <span class="value" id="summary-withholding-credits">$0.00</span>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn btn-secondary" onclick="goToStep(3)">Back to Deductions</button>
+          <button class="btn btn-success" onclick="fileReturn()">File My Return</button>
+        </div>
+      </div>
+
+      <!-- Success Screen -->
+      <div class="form-section" id="step5">
+        <div class="success-message">
+          <div class="success-icon">&#9989;</div>
+          <h2>Your Return Has Been Filed!</h2>
+          <p style="color: #718096; margin-top: 12px;">Confirmation #: TT-2024-847291</p>
+          <div class="refund-box" style="margin-top: 24px;">
+            <div class="refund-label">Your Federal Refund</div>
+            <div class="refund-amount" id="final-refund-amount">$3,247</div>
+            <p style="margin-top: 12px; font-size: 14px; opacity: 0.9;">Expected deposit: 14-21 days via direct deposit</p>
+          </div>
+          <p style="margin-top: 24px; color: #4a5568;">Thank you for using TaxoMatic!</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function goToStep(step) {
+      // Hide all sections
+      document.querySelectorAll('.form-section').forEach(s => s.classList.remove('active'));
+
+      // Show target section
+      document.getElementById('step' + step).classList.add('active');
+
+      // Update progress circles
+      for (let i = 1; i <= 4; i++) {
+        const circle = document.getElementById('step' + i + '-circle');
+        circle.classList.remove('active', 'completed');
+
+        if (i < step) {
+          circle.classList.add('completed');
+          circle.innerHTML = '&#10003;';
+        } else if (i === step) {
+          circle.classList.add('active');
+          circle.innerHTML = i;
+        } else {
+          circle.innerHTML = i;
+        }
+      }
+
+      // If going to review, calculate totals
+      if (step === 4) {
+        calculateTotals();
+      }
+    }
+
+    function toggle1099Fields() {
+      const has1099 = document.getElementById('has-1099').value;
+      document.getElementById('income-1099-fields').style.display = has1099 === 'yes' ? 'block' : 'none';
+    }
+
+    function toggleDeductionFields() {
+      const deductionType = document.getElementById('deduction-type').value;
+      document.getElementById('itemized-fields').style.display = deductionType === 'itemized' ? 'block' : 'none';
+    }
+
+    function parseMoney(value) {
+      if (!value) return 0;
+      return parseFloat(value.replace(/[$,]/g, '')) || 0;
+    }
+
+    function formatMoney(value) {
+      return '$' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function calculateTotals() {
+      // Get W-2 values
+      const wages = parseMoney(document.getElementById('wages').value);
+      const withheldW2 = parseMoney(document.getElementById('federal-withheld').value);
+
+      // Get 1099 values
+      const income1099NEC = parseMoney(document.getElementById('income-1099-nec').value);
+      const income1099MISC = parseMoney(document.getElementById('income-1099-misc').value);
+      const withheld1099 = parseMoney(document.getElementById('federal-withheld-1099').value);
+      const total1099 = income1099NEC + income1099MISC;
+
+      // Total income
+      const totalIncome = wages + total1099;
+
+      // Total withholding
+      const totalWithheld = withheldW2 + withheld1099;
+
+      // Deductions
+      const deductionType = document.getElementById('deduction-type').value;
+      let deductionAmount = 14600; // Standard deduction for single
+
+      if (deductionType === 'itemized') {
+        const mortgage = parseMoney(document.getElementById('mortgage-interest').value);
+        const property = parseMoney(document.getElementById('property-taxes').value);
+        const charitable = parseMoney(document.getElementById('charitable').value);
+        const medical = parseMoney(document.getElementById('medical').value);
+        deductionAmount = mortgage + property + charitable + medical;
+      }
+
+      // Credits
+      let credits = 0;
+      if (document.getElementById('child-credit').checked) credits += 2000;
+      if (document.getElementById('education-credit').checked) credits += 2500;
+      if (document.getElementById('energy-credit').checked) credits += 1200;
+
+      // Taxable income
+      const taxableIncome = Math.max(0, totalIncome - deductionAmount);
+
+      // Simple tax calculation (2024 brackets for single filer)
+      let estimatedTax = 0;
+      if (taxableIncome > 0) {
+        if (taxableIncome <= 11600) {
+          estimatedTax = taxableIncome * 0.10;
+        } else if (taxableIncome <= 47150) {
+          estimatedTax = 1160 + (taxableIncome - 11600) * 0.12;
+        } else if (taxableIncome <= 100525) {
+          estimatedTax = 5426 + (taxableIncome - 47150) * 0.22;
+        } else if (taxableIncome <= 191950) {
+          estimatedTax = 17168.50 + (taxableIncome - 100525) * 0.24;
+        } else {
+          estimatedTax = 39110.50 + (taxableIncome - 191950) * 0.32;
+        }
+      }
+
+      // Apply credits
+      estimatedTax = Math.max(0, estimatedTax - credits);
+
+      // Calculate refund/owed
+      const refundOwed = totalWithheld - estimatedTax;
+
+      // Update summary
+      document.getElementById('summary-wages').textContent = formatMoney(wages);
+      document.getElementById('summary-1099').textContent = formatMoney(total1099);
+      document.getElementById('summary-total-income').innerHTML = '<strong>' + formatMoney(totalIncome) + '</strong>';
+
+      document.getElementById('summary-withheld-w2').textContent = formatMoney(withheldW2);
+      document.getElementById('summary-withheld-1099').textContent = formatMoney(withheld1099);
+      document.getElementById('summary-total-withheld').innerHTML = '<strong>' + formatMoney(totalWithheld) + '</strong>';
+
+      document.getElementById('summary-deduction-type').textContent = deductionType === 'standard' ? 'Standard' : 'Itemized';
+      document.getElementById('summary-deduction-amount').textContent = formatMoney(deductionAmount);
+      document.getElementById('summary-credits').textContent = formatMoney(credits);
+
+      document.getElementById('summary-taxable-income').textContent = formatMoney(taxableIncome);
+      document.getElementById('summary-estimated-tax').textContent = formatMoney(estimatedTax);
+      document.getElementById('summary-withholding-credits').textContent = formatMoney(totalWithheld + credits);
+
+      // Update refund box
+      const refundBox = document.getElementById('refund-box');
+      const refundAmount = document.getElementById('refund-amount');
+
+      if (refundOwed >= 0) {
+        refundBox.classList.remove('owed');
+        document.querySelector('#refund-box .refund-label').textContent = 'Your Estimated Federal Refund';
+        refundAmount.textContent = formatMoney(refundOwed);
+      } else {
+        refundBox.classList.add('owed');
+        document.querySelector('#refund-box .refund-label').textContent = 'Amount You Owe';
+        refundAmount.textContent = formatMoney(Math.abs(refundOwed));
+      }
+
+      // Store for final screen
+      window.finalRefundOwed = refundOwed;
+    }
+
+    function createConfetti() {
+      const container = document.getElementById('confetti-container');
+      const colors = ['#38a169', '#0066cc', '#e53e3e', '#ffc107', '#9b59b6', '#3498db'];
+      const shapes = ['square', 'circle'];
+
+      // Create 80 confetti pieces
+      for (let i = 0; i < 80; i++) {
+        const confetti = document.createElement('div');
+        confetti.className = 'confetti';
+
+        // Random properties
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const shape = shapes[Math.floor(Math.random() * shapes.length)];
+        const size = Math.random() * 10 + 5;
+        const left = Math.random() * 100;
+        const delay = Math.random() * 0.5;
+        const duration = Math.random() * 2 + 2;
+
+        confetti.style.backgroundColor = color;
+        confetti.style.width = size + 'px';
+        confetti.style.height = size + 'px';
+        confetti.style.left = left + '%';
+        confetti.style.top = '-20px';
+        confetti.style.animationDelay = delay + 's';
+        confetti.style.animationDuration = duration + 's';
+
+        if (shape === 'circle') {
+          confetti.style.borderRadius = '50%';
+        }
+
+        container.appendChild(confetti);
+
+        // Trigger animation
+        setTimeout(() => {
+          confetti.classList.add('animate');
+        }, 10);
+
+        // Remove after animation
+        setTimeout(() => {
+          confetti.remove();
+        }, (delay + duration) * 1000 + 100);
+      }
+    }
+
+    function fileReturn() {
+      // Show success screen
+      document.querySelectorAll('.form-section').forEach(s => s.classList.remove('active'));
+      document.getElementById('step5').classList.add('active');
+
+      // Update all circles to completed
+      for (let i = 1; i <= 4; i++) {
+        const circle = document.getElementById('step' + i + '-circle');
+        circle.classList.remove('active');
+        circle.classList.add('completed');
+        circle.innerHTML = '&#10003;';
+      }
+
+      // Set final amount
+      const finalAmount = document.getElementById('final-refund-amount');
+      if (window.finalRefundOwed >= 0) {
+        finalAmount.textContent = formatMoney(window.finalRefundOwed);
+      } else {
+        finalAmount.textContent = formatMoney(Math.abs(window.finalRefundOwed));
+      }
+
+      // Trigger confetti animation
+      createConfetti();
+    }
+  </script>
+</body>
+</html>
