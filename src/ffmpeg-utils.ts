@@ -42,10 +42,11 @@ export async function concatAudioWithGaps(
 
   const filterParts = sortedSegments.map((seg, i) => {
     // adelay takes milliseconds, delay both channels
-    // volume=0.3 reduces keypress sounds to 30% to not overwhelm narration
     // Subtract offsetMs to normalize timestamps (first event plays at t=0)
     const adjustedTime = Math.max(0, seg.startTimeMs - offsetMs);
-    return `[${i}]adelay=${adjustedTime}|${adjustedTime},volume=0.3[a${i}]`;
+    // Apply volume reduction only to UI sounds (keypresses, clicks), not narration
+    const volume = seg.type === 'narration' ? 1.0 : 0.05;
+    return `[${i}]adelay=${adjustedTime}|${adjustedTime},volume=${volume}[a${i}]`;
   });
 
   const mixInputs = sortedSegments.map((_, i) => `[a${i}]`).join('');
