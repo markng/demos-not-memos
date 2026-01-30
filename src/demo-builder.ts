@@ -4,7 +4,7 @@ import { join, dirname } from 'path';
 import { DemoConfig, DemoState, DEFAULT_CONFIG } from './types';
 import { Narration } from './narration';
 import { concatAudioWithGaps, mergeAudioVideo } from './ffmpeg-utils';
-import { generateSound, initSoundsDir, SoundType } from './sounds';
+import { generateSound, initSoundsDir, SoundType, getVariantSoundType } from './sounds';
 
 /**
  * A wrapped page that intercepts click and type operations
@@ -12,13 +12,13 @@ import { generateSound, initSoundsDir, SoundType } from './sounds';
  */
 export class SoundEnabledPage {
   private originalPage: Page;
-  private recordTimestamp: (type: SoundType, count?: number) => void;
+  private recordTimestamp: (type: SoundType) => void;
   private pendingSoundTimestamps: Array<{ type: SoundType; timeMs: number }>;
   private state: DemoState;
 
   constructor(
     page: Page,
-    recordTimestamp: (type: SoundType, count?: number) => void,
+    recordTimestamp: (type: SoundType) => void,
     pendingSoundTimestamps: Array<{ type: SoundType; timeMs: number }>,
     state: DemoState
   ) {
@@ -41,31 +41,88 @@ export class SoundEnabledPage {
 
   /**
    * Click an element and record the click timestamp
+   * Uses smooth scrolling and human-like reaction delay
    */
   async click(selector: string): Promise<void> {
-    await this.originalPage.locator(selector).scrollIntoViewIfNeeded();
+    // Smooth scroll into view using Playwright's locator
+    const locator = this.originalPage.locator(selector);
+    await locator.scrollIntoViewIfNeeded();
+
+    // Add extra delay to simulate smooth scrolling feel
+    await this.originalPage.waitForTimeout(200);
+
+    // Human reaction delay (100-200ms)
+    await this.originalPage.waitForTimeout(100 + Math.random() * 100);
+
     this.recordTimestamp('click');
     await this.originalPage.click(selector);
   }
 
   /**
+   * Get the appropriate sound type for a character
+   * Uses round-robin selection for letters and spaces to avoid repetitive sounds
+   */
+  private getSoundTypeForChar(char: string): SoundType {
+    if (char === ' ') return getVariantSoundType('keypress-space');
+    if (char === '\n' || char === '\r') return 'keypress-return';
+    return getVariantSoundType('keypress-letter');
+  }
+
+  /**
+   * Calculate variable delay between keypresses for natural typing feel
+   */
+  private getKeypressDelay(prevChar: string, currentChar: string, baseDelay: number): number {
+    let delay = baseDelay;
+
+    // 1. Random variation (+/- 30%)
+    delay *= 0.7 + Math.random() * 0.6;
+
+    // 2. Common digraphs are faster (th, er, on, an, etc.)
+    const fastDigraphs = ['th', 'er', 'on', 'an', 'en', 'in', 're', 'he', 'ed', 'nd'];
+    if (fastDigraphs.includes((prevChar + currentChar).toLowerCase())) {
+      delay *= 0.7;
+    }
+
+    // 3. After space = slight pause (thinking)
+    if (prevChar === ' ') {
+      delay *= 1.3;
+    }
+
+    // 4. Punctuation followed by longer pause
+    if (['.', ',', '!', '?'].includes(prevChar)) {
+      delay *= 1.5;
+    }
+
+    return Math.round(delay);
+  }
+
+  /**
    * Type text into an element and record keypress timestamps
+   * Uses variable timing for natural feel and different sounds for different keys
    */
   async type(selector: string, text: string, options?: { delay?: number }): Promise<void> {
     await this.originalPage.locator(selector).scrollIntoViewIfNeeded();
 
-    const charDelay = options?.delay ?? 80; // Default 80ms between characters
+    const baseDelay = options?.delay ?? 150; // Default 220ms base for ~45 WPM typing
 
     for (let i = 0; i < text.length; i++) {
+      const currentChar = text[i];
+      const prevChar = i > 0 ? text[i - 1] : '';
+
+      // Record timestamp BEFORE typing - sound should start as keystroke begins
+      // Recording after causes drift since page.type() has internal latency
+      const soundType = this.getSoundTypeForChar(currentChar);
+      const timeMs = Date.now() - this.state.startTime;
+      console.log(`[SOUND] ${soundType} for '${currentChar}' at ${timeMs}ms`);
+      this.recordTimestampAt(soundType, timeMs);
+
       // Type single character
-      await this.originalPage.type(selector, text[i]);
+      await this.originalPage.type(selector, currentChar);
 
-      // Record timestamp AFTER typing so sound aligns with character appearance
-      this.recordTimestampAt('keypress', Date.now() - this.state.startTime);
-
-      // Wait between characters (except after the last one)
+      // Wait between characters with variable timing (except after the last one)
       if (i < text.length - 1) {
-        await this.originalPage.waitForTimeout(charDelay);
+        const delay = this.getKeypressDelay(prevChar, currentChar, baseDelay);
+        await this.originalPage.waitForTimeout(delay);
       }
     }
   }
@@ -167,15 +224,11 @@ export class NarratedDemo {
   }
 
   /**
-   * Record a timestamp for a sound event
+   * Record a timestamp for a sound event (used for click sounds)
    */
-  private recordSoundTimestamp(type: SoundType, count: number = 1): void {
-    const baseTime = Date.now() - this.state.startTime;
-    // For keypresses, spread them out slightly (50ms apart)
-    for (let i = 0; i < count; i++) {
-      const timeMs = baseTime + (type === 'keypress' ? i * 50 : 0);
-      this.pendingSoundTimestamps.push({ type, timeMs });
-    }
+  private recordSoundTimestamp(type: SoundType): void {
+    const timeMs = Date.now() - this.state.startTime;
+    this.pendingSoundTimestamps.push({ type, timeMs });
   }
 
   /**
@@ -207,32 +260,29 @@ export class NarratedDemo {
         size: this.config.viewport,
       },
     });
+
     this.state.page = await this.state.context.newPage();
 
     // Create sound-enabled page wrapper if sounds are enabled
     if (this.config.sounds) {
       this.soundEnabledPage = new SoundEnabledPage(
         this.state.page,
-        (type, count) => this.recordSoundTimestamp(type, count),
+        (type) => this.recordSoundTimestamp(type),
         this.pendingSoundTimestamps,
         this.state
       );
     }
 
-
     // Navigate to base URL
     await this.state.page.goto(this.config.baseUrl);
 
+    // Set startTime AFTER page navigation completes - this aligns with when video actually starts rendering
+    // Previously this was set at context creation, causing ~2.4s audio offset
     this.state.started = true;
     this.state.startTime = Date.now();
+    console.log(`[TIMING] startTime captured: ${this.state.startTime} (after page navigation)`);
   }
 
-  /**
-   * Inject a visible cursor overlay that follows mouse movements
-   * Currently disabled - cursor overlay removed
-   */
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  private async injectCursorOverlay(): Promise<void> {}
 
   /**
    * Create a narration segment
@@ -330,6 +380,10 @@ export class NarratedDemo {
     // If we have audio segments, concatenate them
     let audioPath: string | null = null;
     if (this.state.audioSegments.length > 0) {
+      console.log(`\n[TIMING] Final audio segments (${this.state.audioSegments.length} total):`);
+      for (const seg of this.state.audioSegments) {
+        console.log(`  ${seg.type || 'narration'} at ${seg.startTimeMs}ms (duration: ${seg.durationMs}ms)`);
+      }
       audioPath = join(this.tempDir, 'combined-audio.wav');
       await concatAudioWithGaps(this.state.audioSegments, audioPath);
     }

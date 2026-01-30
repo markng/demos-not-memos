@@ -4,10 +4,12 @@ import {
   clearSoundCache,
   getSoundCache,
   SoundType,
+  getVariantSoundType,
 } from './sounds';
 import { getAudioDuration } from './audio-utils';
-import { createWriteStream, existsSync, mkdirSync } from 'fs';
+import { createWriteStream, existsSync, mkdirSync, unlinkSync, statSync } from 'fs';
 import { pipeline } from 'stream/promises';
+import { execSync } from 'child_process';
 
 // Mock dependencies
 jest.mock('elevenlabs', () => ({
@@ -22,10 +24,16 @@ jest.mock('fs', () => ({
   createWriteStream: jest.fn(),
   existsSync: jest.fn(),
   mkdirSync: jest.fn(),
+  unlinkSync: jest.fn(),
+  statSync: jest.fn(),
 }));
 
 jest.mock('stream/promises', () => ({
   pipeline: jest.fn(),
+}));
+
+jest.mock('child_process', () => ({
+  execSync: jest.fn(),
 }));
 
 jest.mock('./audio-utils', () => ({
@@ -67,6 +75,10 @@ describe('sounds', () => {
       (createWriteStream as jest.Mock).mockReturnValue(mockWriteStream);
       (pipeline as jest.Mock).mockResolvedValue(undefined);
       (getAudioDuration as jest.Mock).mockResolvedValue(100);
+      (execSync as jest.Mock).mockReturnValue(undefined);
+      (unlinkSync as jest.Mock).mockReturnValue(undefined);
+      // Default to valid file size (>1000 bytes)
+      (statSync as jest.Mock).mockReturnValue({ size: 2000 });
     });
 
     it('should throw error if sounds directory not initialized', async () => {
@@ -89,7 +101,7 @@ describe('sounds', () => {
       await generateSound('click');
 
       expect(mockConvert).toHaveBeenCalledWith({
-        text: 'short crisp mouse click on a trackpad',
+        text: 'MacBook Pro trackpad click, soft satisfying tap, ASMR quality, no background noise, isolated sound',
         duration_seconds: 0.5,
       });
     });
@@ -107,12 +119,66 @@ describe('sounds', () => {
       await generateSound('keypress');
 
       expect(mockConvert).toHaveBeenCalledWith({
-        text: 'single mechanical keyboard key press',
+        text: 'ASMR keyboard key press, satisfying soft thock, MacBook scissor switch, no background noise, isolated sound',
         duration_seconds: 0.5,
       });
     });
 
-    it('should write audio to correct path', async () => {
+    it('should generate keypress-letter-1 sound with correct prompt', async () => {
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      await generateSound('keypress-letter-1');
+
+      expect(mockConvert).toHaveBeenCalledWith({
+        text: 'ASMR keyboard key press, soft satisfying thock, gentle attack, MacBook style, no background noise, isolated sound',
+        duration_seconds: 0.5,
+      });
+    });
+
+    it('should generate keypress-space-1 sound with correct prompt', async () => {
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      await generateSound('keypress-space-1');
+
+      expect(mockConvert).toHaveBeenCalledWith({
+        text: 'ASMR spacebar press, satisfying deep thock, resonant, MacBook style, no background noise, isolated sound',
+        duration_seconds: 0.5,
+      });
+    });
+
+    it('should generate keypress-return sound with correct prompt', async () => {
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      await generateSound('keypress-return');
+
+      expect(mockConvert).toHaveBeenCalledWith({
+        text: 'ASMR enter key press, satisfying thock, slightly longer decay, MacBook style, no background noise, isolated sound',
+        duration_seconds: 0.5,
+      });
+    });
+
+    it('should write audio to temp path before trimming', async () => {
       initSoundsDir('/tmp/sounds');
       const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
       const mockClient = {
@@ -124,7 +190,8 @@ describe('sounds', () => {
 
       await generateSound('click');
 
-      expect(createWriteStream).toHaveBeenCalledWith('/tmp/sounds/click.mp3');
+      // Audio is first written to temp path, then ffmpeg trims it
+      expect(createWriteStream).toHaveBeenCalledWith('/tmp/sounds/click.temp.mp3');
     });
 
     it('should return result with correct path and duration', async () => {
@@ -166,7 +233,7 @@ describe('sounds', () => {
       expect(result1).toEqual(result2);
     });
 
-    it('should load from disk if file exists', async () => {
+    it('should load from disk if file exists and is valid', async () => {
       initSoundsDir('/tmp/sounds');
       // File exists on disk
       (existsSync as jest.Mock).mockImplementation((path: string) => {
@@ -174,6 +241,8 @@ describe('sounds', () => {
         if (path === '/tmp/sounds/click.mp3') return true;
         return false;
       });
+      // File is valid (>1000 bytes)
+      (statSync as jest.Mock).mockReturnValue({ size: 2000 });
       (getAudioDuration as jest.Mock).mockResolvedValue(200);
 
       const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
@@ -201,6 +270,8 @@ describe('sounds', () => {
         if (path === '/tmp/sounds/keypress.mp3') return true;
         return false;
       });
+      // File is valid (>1000 bytes)
+      (statSync as jest.Mock).mockReturnValue({ size: 2000 });
       (getAudioDuration as jest.Mock).mockResolvedValue(50);
 
       const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
@@ -251,6 +322,135 @@ describe('sounds', () => {
 
       await expect(generateSound('click')).rejects.toThrow('Write failed');
     });
+
+    it('should retry when generated file is too small (silent audio)', async () => {
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      // First two attempts produce invalid (too small) files, third succeeds
+      (statSync as jest.Mock)
+        .mockReturnValueOnce({ size: 250 }) // First attempt: invalid
+        .mockReturnValueOnce({ size: 250 }) // Second attempt: invalid
+        .mockReturnValueOnce({ size: 2000 }); // Third attempt: valid
+
+      // existsSync for temp file cleanup and invalid file deletion
+      let existsCallCount = 0;
+      (existsSync as jest.Mock).mockImplementation((path: string) => {
+        existsCallCount++;
+        // Temp files exist for cleanup, output files exist for deletion on retry
+        if (path.endsWith('.temp.mp3')) return true;
+        if (path.endsWith('.mp3') && existsCallCount > 1) return true;
+        return false;
+      });
+
+      const result = await generateSound('click');
+
+      // Should have called API 3 times due to retries
+      expect(mockConvert).toHaveBeenCalledTimes(3);
+      expect(result.durationMs).toBe(100);
+    });
+
+    it('should throw error after max retries for invalid files', async () => {
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      // All attempts produce invalid files
+      (statSync as jest.Mock).mockReturnValue({ size: 250 });
+
+      (existsSync as jest.Mock).mockImplementation((path: string) => {
+        if (path.endsWith('.temp.mp3')) return true;
+        if (path.endsWith('.mp3')) return true;
+        return false;
+      });
+
+      await expect(generateSound('click')).rejects.toThrow(
+        'Failed to generate valid sound for "click" after 3 attempts'
+      );
+
+      // Should have retried 3 times
+      expect(mockConvert).toHaveBeenCalledTimes(3);
+    });
+
+    it('should regenerate if cached file on disk is invalid', async () => {
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      // File exists on disk but is invalid (too small)
+      (existsSync as jest.Mock).mockImplementation((path: string) => {
+        if (path === '/tmp/sounds') return true;
+        if (path === '/tmp/sounds/click.mp3') return true;
+        if (path.endsWith('.temp.mp3')) return true;
+        return false;
+      });
+
+      // First check shows invalid file, after regeneration it's valid
+      (statSync as jest.Mock)
+        .mockReturnValueOnce({ size: 250 }) // Cached file is invalid
+        .mockReturnValueOnce({ size: 2000 }); // After regeneration, valid
+
+      const result = await generateSound('click');
+
+      // Should have called API to regenerate
+      expect(mockConvert).toHaveBeenCalledTimes(1);
+      expect(result.durationMs).toBe(100);
+    });
+
+    it('should call ffmpeg with silenceremove filter', async () => {
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      await generateSound('click');
+
+      expect(execSync).toHaveBeenCalledWith(
+        expect.stringContaining('silenceremove=start_periods=1:start_threshold=-30dB'),
+        expect.any(Object)
+      );
+    });
+
+    it('should clean up temp file after trimming', async () => {
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      // Temp file exists after generation
+      (existsSync as jest.Mock).mockImplementation((path: string) => {
+        if (path.endsWith('.temp.mp3')) return true;
+        return false;
+      });
+
+      await generateSound('click');
+
+      expect(unlinkSync).toHaveBeenCalledWith('/tmp/sounds/click.temp.mp3');
+    });
   });
 
   describe('clearSoundCache', () => {
@@ -263,10 +463,17 @@ describe('sounds', () => {
         },
       };
       (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
-      (existsSync as jest.Mock).mockReturnValue(false);
+      (existsSync as jest.Mock).mockImplementation((path: string) => {
+        // Temp file exists for cleanup
+        if (path.endsWith('.temp.mp3')) return true;
+        return false;
+      });
       (createWriteStream as jest.Mock).mockReturnValue({ on: jest.fn() });
       (pipeline as jest.Mock).mockResolvedValue(undefined);
       (getAudioDuration as jest.Mock).mockResolvedValue(100);
+      (execSync as jest.Mock).mockReturnValue(undefined);
+      (unlinkSync as jest.Mock).mockReturnValue(undefined);
+      (statSync as jest.Mock).mockReturnValue({ size: 2000 });
 
       // Generate a sound
       await generateSound('click');
@@ -292,6 +499,73 @@ describe('sounds', () => {
     it('should return the cache map', () => {
       const cache = getSoundCache();
       expect(cache).toBeInstanceOf(Map);
+    });
+  });
+
+  describe('getVariantSoundType', () => {
+    it('should return a valid keypress-letter variant', () => {
+      const result = getVariantSoundType('keypress-letter');
+      expect(result).toMatch(/^keypress-letter-[1-5]$/);
+    });
+
+    it('should return a valid keypress-space variant', () => {
+      const result = getVariantSoundType('keypress-space');
+      expect(result).toMatch(/^keypress-space-[1-5]$/);
+    });
+
+    it('should avoid immediate repetition for keypress-letter', () => {
+      // Call multiple times and track results
+      const results: string[] = [];
+      for (let i = 0; i < 20; i++) {
+        results.push(getVariantSoundType('keypress-letter'));
+      }
+
+      // Check that no two consecutive results are the same
+      for (let i = 1; i < results.length; i++) {
+        expect(results[i]).not.toBe(results[i - 1]);
+      }
+    });
+
+    it('should avoid immediate repetition for keypress-space', () => {
+      // Call multiple times and track results
+      const results: string[] = [];
+      for (let i = 0; i < 20; i++) {
+        results.push(getVariantSoundType('keypress-space'));
+      }
+
+      // Check that no two consecutive results are the same
+      for (let i = 1; i < results.length; i++) {
+        expect(results[i]).not.toBe(results[i - 1]);
+      }
+    });
+
+    it('should track letter and space variants independently', () => {
+      // Get a letter variant
+      const letter1 = getVariantSoundType('keypress-letter');
+      // Get a space variant - should be independent
+      const space1 = getVariantSoundType('keypress-space');
+      // Get another letter variant - should avoid letter1, not space1
+      const letter2 = getVariantSoundType('keypress-letter');
+
+      expect(letter2).not.toBe(letter1);
+      // space1 is independent - no assertion needed about its relationship
+      expect(space1).toMatch(/^keypress-space-[1-5]$/);
+    });
+
+    it('should return all variants over many calls (statistical)', () => {
+      const letterVariants = new Set<string>();
+      const spaceVariants = new Set<string>();
+
+      // Run enough times to likely get all variants
+      for (let i = 0; i < 100; i++) {
+        letterVariants.add(getVariantSoundType('keypress-letter'));
+        spaceVariants.add(getVariantSoundType('keypress-space'));
+      }
+
+      // Should have gotten all 5 letter variants
+      expect(letterVariants.size).toBe(5);
+      // Should have gotten all 5 space variants
+      expect(spaceVariants.size).toBe(5);
     });
   });
 });

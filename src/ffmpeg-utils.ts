@@ -19,6 +19,14 @@ export async function concatAudioWithGaps(
   // Sort segments by start time
   const sortedSegments = [...segments].sort((a, b) => a.startTimeMs - b.startTimeMs);
 
+  console.log(`\n[FFMPEG] concatAudioWithGaps called with ${sortedSegments.length} segments:`);
+  for (const seg of sortedSegments.slice(0, 10)) {
+    console.log(`  [FFMPEG] segment startTimeMs=${seg.startTimeMs}, path=${seg.path.split('/').pop()}`);
+  }
+  if (sortedSegments.length > 10) {
+    console.log(`  [FFMPEG] ... and ${sortedSegments.length - 10} more segments`);
+  }
+
   // Build ffmpeg filter complex for mixing audio at correct times
   const inputs = sortedSegments.map((seg, i) => `-i "${seg.path}"`).join(' ');
 
@@ -31,6 +39,14 @@ export async function concatAudioWithGaps(
   const filterComplex = `${filterParts.join(';')};${mixInputs}amix=inputs=${sortedSegments.length}:normalize=0[out]`;
 
   const command = `ffmpeg -y ${inputs} -filter_complex "${filterComplex}" -map "[out]" "${outputPath}"`;
+
+  console.log(`\n[FFMPEG] Full command:\n${command}\n`);
+
+  // Log the adelay values being used
+  console.log(`[FFMPEG] adelay values (first 10):`);
+  for (let i = 0; i < Math.min(10, sortedSegments.length); i++) {
+    console.log(`  [${i}] adelay=${sortedSegments[i].startTimeMs}ms`);
+  }
 
   await execAsync(command);
   return outputPath;
