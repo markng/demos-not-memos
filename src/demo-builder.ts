@@ -30,6 +30,7 @@ export class SoundEnabledPage {
    * Click an element and record the click timestamp
    */
   async click(selector: string): Promise<void> {
+    await this.originalPage.locator(selector).scrollIntoViewIfNeeded();
     this.recordTimestamp('click');
     await this.originalPage.click(selector);
   }
@@ -38,6 +39,7 @@ export class SoundEnabledPage {
    * Type text into an element and record keypress timestamps
    */
   async type(selector: string, text: string): Promise<void> {
+    await this.originalPage.locator(selector).scrollIntoViewIfNeeded();
     // Record a keypress for each character
     for (let i = 0; i < text.length; i++) {
       this.recordTimestamp('keypress');
@@ -49,6 +51,7 @@ export class SoundEnabledPage {
    * Fill an input element (faster than type, no individual keystrokes)
    */
   async fill(selector: string, value: string): Promise<void> {
+    await this.originalPage.locator(selector).scrollIntoViewIfNeeded();
     await this.originalPage.fill(selector, value);
   }
 
@@ -191,11 +194,50 @@ export class NarratedDemo {
       );
     }
 
+    // Inject cursor overlay if enabled (default: true)
+    if (this.config.showCursor !== false) {
+      await this.injectCursorOverlay();
+    }
+
     // Navigate to base URL
     await this.state.page.goto(this.config.baseUrl);
 
     this.state.started = true;
     this.state.startTime = Date.now();
+  }
+
+  /**
+   * Inject a visible cursor overlay that follows mouse movements
+   */
+  private async injectCursorOverlay(): Promise<void> {
+    await this.state.page!.addInitScript(`
+      const cursor = document.createElement('div');
+      cursor.id = 'demo-cursor';
+      cursor.style.cssText = \`
+        position: fixed;
+        width: 24px;
+        height: 24px;
+        background: radial-gradient(circle, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.2) 40%, transparent 70%);
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 999999;
+        transform: translate(-50%, -50%);
+        transition: transform 0.05s ease-out;
+      \`;
+      document.body.appendChild(cursor);
+
+      document.addEventListener('mousemove', (e) => {
+        cursor.style.left = e.clientX + 'px';
+        cursor.style.top = e.clientY + 'px';
+      });
+
+      document.addEventListener('mousedown', () => {
+        cursor.style.transform = 'translate(-50%, -50%) scale(0.8)';
+      });
+      document.addEventListener('mouseup', () => {
+        cursor.style.transform = 'translate(-50%, -50%) scale(1)';
+      });
+    `);
   }
 
   /**
