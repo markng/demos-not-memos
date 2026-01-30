@@ -43,7 +43,9 @@ export interface AudioSegment {
   /** Duration in milliseconds */
   durationMs: number;
   /** Type of audio segment */
-  type: 'narration' | 'click' | 'keypress';
+  type: 'narration' | 'click' | 'keypress' | 'keypress-return'
+    | 'keypress-letter-1' | 'keypress-letter-2' | 'keypress-letter-3' | 'keypress-letter-4' | 'keypress-letter-5'
+    | 'keypress-space-1' | 'keypress-space-2' | 'keypress-space-3' | 'keypress-space-4' | 'keypress-space-5';
 }
 
 /**
@@ -78,6 +80,8 @@ export interface DemoState {
   started: boolean;
   /** Start timestamp */
   startTime: number;
+  /** Sync marker timestamp - all audio events are relative to this */
+  syncTime: number;
   /** Collected audio segments */
   audioSegments: AudioSegment[];
   /** Path to the raw video recording */
