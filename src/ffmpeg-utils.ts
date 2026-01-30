@@ -2,13 +2,13 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { mkdir, readdir, unlink, rmdir } from 'fs/promises';
 import { join } from 'path';
+import { tmpdir } from 'os';
 import { AudioSegment } from './types';
 
 const execAsync = promisify(exec);
 
 // Sync marker color: magenta (#FF00FF) = R:255, G:0, B:255
 const SYNC_MARKER_R = 255;
-const SYNC_MARKER_G = 0;
 const SYNC_MARKER_B = 255;
 const SYNC_MARKER_THRESHOLD = 0.8; // 80% of pixels must be magenta
 
@@ -38,7 +38,7 @@ export async function concatAudioWithGaps(
   }
 
   // Build ffmpeg filter complex for mixing audio at correct times
-  const inputs = sortedSegments.map((seg, i) => `-i "${seg.path}"`).join(' ');
+  const inputs = sortedSegments.map((seg, _i) => `-i "${seg.path}"`).join(' ');
 
   const filterParts = sortedSegments.map((seg, i) => {
     // adelay takes milliseconds, delay both channels
@@ -92,7 +92,7 @@ export async function mergeAudioVideo(
  */
 export async function detectSyncFrame(videoPath: string): Promise<number> {
   // Create temp directory for frame extraction
-  const tempDir = join(require('os').tmpdir(), `sync-detect-${Date.now()}`);
+  const tempDir = join(tmpdir(), `sync-detect-${Date.now()}`);
   await mkdir(tempDir, { recursive: true });
 
   try {
@@ -203,7 +203,7 @@ export async function detectSyncFrameRange(videoPath: string): Promise<{
   frameDurationMs: number;
 }> {
   // Create temp directory for frame extraction
-  const tempDir = join(require('os').tmpdir(), `sync-range-${Date.now()}`);
+  const tempDir = join(tmpdir(), `sync-range-${Date.now()}`);
   await mkdir(tempDir, { recursive: true });
 
   try {
