@@ -478,7 +478,7 @@ export class NarratedDemo {
       console.log(`[TIMING] trimDurationMs: ${trimDurationMs.toFixed(2)}ms (total video trimmed)`);
       console.log(`[TIMING] audioOffset: ${audioOffset.toFixed(2)}ms (trim - sync offset)`);
       for (const seg of this.state.audioSegments) {
-        console.log(`  ${seg.type || 'narration'} at ${seg.startTimeMs}ms -> ${seg.startTimeMs - audioOffset}ms (duration: ${seg.durationMs}ms)`);
+        console.log(`  ${seg.type} at ${seg.startTimeMs}ms -> ${seg.startTimeMs - audioOffset}ms (duration: ${seg.durationMs}ms)`);
       }
 
       audioPath = join(this.tempDir, 'combined-audio.wav');
