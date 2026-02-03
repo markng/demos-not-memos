@@ -577,6 +577,108 @@ describe('ffmpeg-utils', () => {
 
       await expect(trimSyncFrames('/input/video.webm', '/output/video.mp4', 5, 40)).rejects.toThrow('ffmpeg failed');
     });
+
+    it('should log trimming information', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      await trimSyncFrames('/input/video.webm', '/output/video.mp4', 10, 40);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[SYNC] Trimming 10 frames (0.400s) from video')
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should not log when framesToTrim is 0', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      await trimSyncFrames('/input/video.webm', '/output/video.mp4', 0, 40);
+
+      expect(consoleLogSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('[SYNC] Trimming')
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+  });
+
+  describe('logging in detectSyncFrame', () => {
+    let consoleLogSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      jest.clearAllMocks();
+      
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '30/1\n', stderr: '' });
+        } else if (command.includes('ffmpeg')) {
+          callback(null, { stdout: '', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+    });
+
+    afterEach(() => {
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should log FPS and frame duration', async () => {
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm', 'frame-002.ppm']);
+      
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      await detectSyncFrame('/input/video.mp4');
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[SYNC] Video FPS: 30')
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('frame duration: 33.33ms')
+      );
+    });
+
+    it('should log number of extracted frames', async () => {
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm', 'frame-002.ppm', 'frame-003.ppm']);
+      
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      await detectSyncFrame('/input/video.mp4');
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[SYNC] Extracted 3 frames for analysis')
+      );
+    });
+
+    it('should log when no sync frame detected', async () => {
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm']);
+      
+      const mockReadFile = readFile as unknown as jest.Mock;
+      // Non-magenta frame
+      mockReadFile.mockResolvedValue(Buffer.from('P6\n100 100\n255\n' + '\x00'.repeat(30000)));
+
+      await detectSyncFrame('/input/video.mp4');
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[SYNC] No sync frame detected, returning 0')
+      );
+    });
   });
 
   describe('volume calculations in concatAudioWithGaps', () => {
@@ -683,6 +785,172 @@ describe('ffmpeg-utils', () => {
       const command = mockExec.mock.calls[0][0];
       // adelay should be 300|300
       expect(command).toContain('adelay=300|300');
+    });
+  });
+
+  describe('logging in concatAudioWithGaps', () => {
+    let consoleLogSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+    });
+
+    afterEach(() => {
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should log when called with segments', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/audio1.mp3', startTimeMs: 100, durationMs: 100, type: 'click' },
+      ];
+
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 0);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[FFMPEG] concatAudioWithGaps called with 1 segments')
+      );
+    });
+
+    it('should log segment details for up to 10 segments', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/audio1.mp3', startTimeMs: 100, durationMs: 100, type: 'click' },
+        { path: '/tmp/audio2.mp3', startTimeMs: 200, durationMs: 100, type: 'click' },
+      ];
+
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 0);
+
+      // Should log details for each segment
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('segment startTimeMs=100')
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('segment startTimeMs=200')
+      );
+    });
+
+    it('should log continuation message when more than 10 segments', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = Array.from({ length: 15 }, (_, i) => ({
+        path: `/tmp/audio${i}.mp3`,
+        startTimeMs: i * 100,
+        durationMs: 100,
+        type: 'click' as const,
+      }));
+
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 0);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('... and 5 more segments')
+      );
+    });
+
+    it('should not log continuation message when 10 or fewer segments', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = Array.from({ length: 10 }, (_, i) => ({
+        path: `/tmp/audio${i}.mp3`,
+        startTimeMs: i * 100,
+        durationMs: 100,
+        type: 'click' as const,
+      }));
+
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 0);
+
+      expect(consoleLogSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('more segments')
+      );
+    });
+
+    it('should log the full ffmpeg command', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/audio1.mp3', startTimeMs: 100, durationMs: 100, type: 'click' },
+      ];
+
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 0);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[FFMPEG] Full command:')
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('ffmpeg -y')
+      );
+    });
+
+    it('should log adelay values with offset information', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/audio1.mp3', startTimeMs: 100, durationMs: 100, type: 'click' },
+      ];
+
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 50);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[FFMPEG] adelay values (first 10), offset=50ms')
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('original=100ms -> adelay=50ms')
+      );
+    });
+
+    it('should handle negative adjusted times in logging', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/audio1.mp3', startTimeMs: 50, durationMs: 100, type: 'click' },
+      ];
+
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 100);
+
+      // Should clamp to 0
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('adelay=0ms')
+      );
+    });
+
+    it('should log path filename using split', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/sounds/audio1.mp3', startTimeMs: 100, durationMs: 100, type: 'click' },
+      ];
+
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 0);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('audio1.mp3')
+      );
     });
   });
 });
