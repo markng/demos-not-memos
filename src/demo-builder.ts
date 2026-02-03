@@ -114,6 +114,7 @@ export class SoundEnabledPage {
       // Use syncTime for audio alignment - this is when the sync marker was shown
       const soundType = this.getSoundTypeForChar(currentChar);
       const timeMs = Date.now() - this.state.syncTime;
+      // eslint-disable-next-line no-console
       console.log(`[SOUND] ${soundType} for '${currentChar}' at ${timeMs}ms (relative to sync marker)`);
       this.recordTimestampAt(soundType, timeMs);
 
@@ -280,11 +281,13 @@ export class NarratedDemo {
     // Navigate to base URL and wait for it to fully load
     await this.state.page.goto(this.config.baseUrl);
     await this.state.page.waitForLoadState('networkidle');
+    // eslint-disable-next-line no-console
     console.log(`[TIMING] Page fully loaded`);
 
     // Set startTime AFTER page navigation completes
     this.state.started = true;
     this.state.startTime = Date.now();
+    // eslint-disable-next-line no-console
     console.log(`[TIMING] startTime captured: ${this.state.startTime} (after page navigation)`);
 
     // Wait 1 second to ensure video recording has stabilized
@@ -303,6 +306,7 @@ export class NarratedDemo {
         marker.offsetHeight;
       })()
     `);
+    // eslint-disable-next-line no-console
     console.log(`[TIMING] Sync marker injected`);
 
     // Wait 100ms for marker to be rendered and captured
@@ -310,6 +314,7 @@ export class NarratedDemo {
 
     // Capture sync time - all audio events will be relative to this moment
     this.state.syncTime = Date.now();
+    // eslint-disable-next-line no-console
     console.log(`[TIMING] syncTime captured: ${this.state.syncTime} (sync marker visible)`);
 
     // Keep marker visible for ~500ms to ensure it's captured in several frames
@@ -318,6 +323,7 @@ export class NarratedDemo {
 
     // Remove the sync marker
     await this.state.page.evaluate(`document.getElementById('sync-marker')?.remove()`);
+    // eslint-disable-next-line no-console
     console.log(`[TIMING] Sync marker removed after 500ms`);
   }
 
@@ -470,7 +476,8 @@ export class NarratedDemo {
     let syncFrameOffsetMs = 0;
     let trimDurationMs = 0;
 
-    if (this.state.videoPath) {
+    if (this.state.videoPath !== null) {
+      // eslint-disable-next-line no-console
       console.log(`\n[SYNC] Detecting sync marker in video...`);
       const { firstSyncFrame, lastSyncFrame, frameDurationMs } = await detectSyncFrameRange(this.state.videoPath);
 
@@ -478,7 +485,9 @@ export class NarratedDemo {
         // Calculate where the sync marker appears in the video
         syncFrameOffsetMs = firstSyncFrame * frameDurationMs;
         const syncDurationFrames = lastSyncFrame - firstSyncFrame + 1;
+        // eslint-disable-next-line no-console
         console.log(`[SYNC] Sync marker found: frames ${firstSyncFrame}-${lastSyncFrame} (${syncDurationFrames} frames)`);
+        // eslint-disable-next-line no-console
         console.log(`[SYNC] Sync frame offset: ${syncFrameOffsetMs.toFixed(2)}ms`);
 
         // Trim sync frames from video
@@ -488,8 +497,10 @@ export class NarratedDemo {
         const trimmedVideoPath = join(this.tempDir, 'trimmed-video.mp4');
         await trimSyncFrames(this.state.videoPath, trimmedVideoPath, framesToTrim, frameDurationMs);
         processedVideoPath = trimmedVideoPath;
+        // eslint-disable-next-line no-console
         console.log(`[SYNC] Trimmed ${framesToTrim} frames (${trimDurationMs.toFixed(2)}ms) from video`);
       } else {
+        // eslint-disable-next-line no-console
         console.log(`[SYNC] No sync marker detected in video - using original`);
       }
     }
@@ -522,11 +533,16 @@ export class NarratedDemo {
 
       const audioOffset = trimDurationMs - syncFrameOffsetMs;
 
+      // eslint-disable-next-line no-console
       console.log(`\n[TIMING] Final audio segments (${this.state.audioSegments.length} total):`);
+      // eslint-disable-next-line no-console
       console.log(`[TIMING] syncFrameOffsetMs: ${syncFrameOffsetMs.toFixed(2)}ms (when marker first appeared)`);
+      // eslint-disable-next-line no-console
       console.log(`[TIMING] trimDurationMs: ${trimDurationMs.toFixed(2)}ms (total video trimmed)`);
+      // eslint-disable-next-line no-console
       console.log(`[TIMING] audioOffset: ${audioOffset.toFixed(2)}ms (trim - sync offset)`);
       for (const seg of this.state.audioSegments) {
+        // eslint-disable-next-line no-console
         console.log(`  ${seg.type} at ${seg.startTimeMs}ms -> ${seg.startTimeMs - audioOffset}ms (duration: ${seg.durationMs}ms)`);
       }
 

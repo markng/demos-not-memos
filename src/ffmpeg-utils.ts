@@ -28,12 +28,15 @@ export async function concatAudioWithGaps(
   // Sort segments by start time
   const sortedSegments = [...segments].sort((a, b) => a.startTimeMs - b.startTimeMs);
 
+  // eslint-disable-next-line no-console
   console.log(`\n[FFMPEG] concatAudioWithGaps called with ${sortedSegments.length} segments, offsetMs=${offsetMs}:`);
   for (const seg of sortedSegments.slice(0, 10)) {
     const adjustedTime = Math.max(0, seg.startTimeMs - offsetMs);
+    // eslint-disable-next-line no-console
     console.log(`  [FFMPEG] segment startTimeMs=${seg.startTimeMs} -> adjusted=${adjustedTime}, path=${seg.path.split('/').pop()}`);
   }
   if (sortedSegments.length > 10) {
+    // eslint-disable-next-line no-console
     console.log(`  [FFMPEG] ... and ${sortedSegments.length - 10} more segments`);
   }
 
@@ -56,12 +59,15 @@ export async function concatAudioWithGaps(
 
   const command = `ffmpeg -y ${inputs} -filter_complex "${filterComplex}" -map "[out]" "${outputPath}"`;
 
+  // eslint-disable-next-line no-console
   console.log(`\n[FFMPEG] Full command:\n${command}\n`);
 
   // Log the adelay values being used (showing original and adjusted)
+  // eslint-disable-next-line no-console
   console.log(`[FFMPEG] adelay values (first 10), offset=${offsetMs}ms:`);
   for (let i = 0; i < Math.min(10, sortedSegments.length); i++) {
     const adjustedTime = Math.max(0, sortedSegments[i].startTimeMs - offsetMs);
+    // eslint-disable-next-line no-console
     console.log(`  [${i}] original=${sortedSegments[i].startTimeMs}ms -> adelay=${adjustedTime}ms`);
   }
 
@@ -103,6 +109,7 @@ export async function detectSyncFrame(videoPath: string): Promise<number> {
     const fps = num / (den || 1);
     const frameDurationMs = 1000 / fps;
 
+    // eslint-disable-next-line no-console
     console.log(`[SYNC] Video FPS: ${fps}, frame duration: ${frameDurationMs.toFixed(2)}ms`);
 
     // Extract first 60 frames (covers ~2 seconds at 30fps, plenty for sync marker)
@@ -113,6 +120,7 @@ export async function detectSyncFrame(videoPath: string): Promise<number> {
     const files = await readdir(tempDir);
     const frameFiles = files.filter(f => f.endsWith('.ppm')).sort();
 
+    // eslint-disable-next-line no-console
     console.log(`[SYNC] Extracted ${frameFiles.length} frames for analysis`);
 
     // Analyze each frame for magenta content
@@ -122,11 +130,13 @@ export async function detectSyncFrame(videoPath: string): Promise<number> {
 
       if (isMagenta) {
         const timestampMs = i * frameDurationMs;
+        // eslint-disable-next-line no-console
         console.log(`[SYNC] Found sync frame at frame ${i} (${timestampMs.toFixed(2)}ms)`);
         return timestampMs;
       }
     }
 
+    // eslint-disable-next-line no-console
     console.log('[SYNC] No sync frame detected, returning 0');
     return 0;
   } finally {
@@ -277,6 +287,7 @@ export async function trimSyncFrames(
   // Calculate start time in seconds
   const startTimeSeconds = (framesToTrim * frameDurationMs) / 1000;
 
+  // eslint-disable-next-line no-console
   console.log(`[SYNC] Trimming ${framesToTrim} frames (${startTimeSeconds.toFixed(3)}s) from video`);
 
   // Use ffmpeg to trim the video

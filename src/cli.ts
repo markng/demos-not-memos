@@ -17,6 +17,7 @@ program
   .action((options: { script: string }) => {
     const scriptPath = resolve(options.script);
 
+    // eslint-disable-next-line no-console
     console.log(`Running demo script: ${scriptPath}`);
 
     const child = spawn('npx', ['ts-node', scriptPath], {
