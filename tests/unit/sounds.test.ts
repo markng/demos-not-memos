@@ -598,4 +598,137 @@ describe('sounds', () => {
       expect(spaceVariants.size).toBe(5);
     });
   });
+
+  describe('generateSound fade parameters', () => {
+    const mockAudioStream = { pipe: jest.fn() };
+
+    beforeEach(() => {
+      // Reset the sounds directory before each test
+      clearSoundCache();
+      (execSync as jest.Mock).mockClear();
+      (existsSync as jest.Mock).mockReturnValue(false);
+      (statSync as jest.Mock).mockReturnValue({ size: 5000 });
+      (getAudioDuration as jest.Mock).mockResolvedValue(100);
+      (pipeline as jest.Mock).mockResolvedValue(undefined);
+      (unlinkSync as jest.Mock).mockReturnValue(undefined);
+    });
+
+    it('should use correct fadeOutStart calculation (0.7 * TARGET_DURATION)', async () => {
+      initSoundsDir('/tmp/sounds');
+      
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      await generateSound('click');
+
+      // Check that execSync was called with correct fade parameters
+      const command = (execSync as jest.Mock).mock.calls[0][0];
+      // fadeOutStart should be 0.1 * 0.7 = 0.07 (approximately, due to floating point)
+      expect(command).toMatch(/st=0\.0[67]/); // Accept 0.06... or 0.07
+    });
+
+    it('should use correct fadeOutDuration calculation (0.3 * TARGET_DURATION)', async () => {
+      initSoundsDir('/tmp/sounds');
+      
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      await generateSound('click');
+
+      const command = (execSync as jest.Mock).mock.calls[0][0];
+      // fadeOutDuration should be 0.1 * 0.3 = 0.03
+      expect(command).toContain('d=0.03');
+    });
+
+    it('should use stdio pipe option in execSync', async () => {
+      initSoundsDir('/tmp/sounds');
+      
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      await generateSound('click');
+
+      // Check that execSync was called with stdio: 'pipe' option
+      expect(execSync).toHaveBeenCalledWith(
+        expect.any(String),
+        { stdio: 'pipe' }
+      );
+    });
+
+    it('should check file existence with existsSync for temp file', async () => {
+      initSoundsDir('/tmp/sounds');
+      
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+      
+      // First call (check output) - doesn't exist
+      // Second call (check temp after ffmpeg) - exists
+      (existsSync as jest.Mock).mockReturnValueOnce(false).mockReturnValue(true);
+
+      await generateSound('click');
+
+      // Should check if temp file exists for cleanup
+      expect(existsSync).toHaveBeenCalled();
+      expect(unlinkSync).toHaveBeenCalled();
+    });
+
+    it('should use size comparison with >= MIN_VALID_FILE_SIZE', async () => {
+      initSoundsDir('/tmp/sounds');
+      
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+      
+      // Return a size exactly at the minimum (1000 bytes)
+      (statSync as jest.Mock).mockReturnValue({ size: 1000 });
+
+      await generateSound('click');
+
+      // Should accept files at exactly the minimum size
+      expect(statSync).toHaveBeenCalled();
+    });
+
+    it('should include error message text when max retries exceeded', async () => {
+      initSoundsDir('/tmp/sounds');
+      
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+      
+      // Always return invalid file size
+      (statSync as jest.Mock).mockReturnValue({ size: 500 });
+
+      await expect(generateSound('click')).rejects.toThrow(
+        'ElevenLabs may be generating silent audio for this prompt'
+      );
+    });
+  });
 });

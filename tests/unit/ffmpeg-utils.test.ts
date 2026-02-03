@@ -578,4 +578,111 @@ describe('ffmpeg-utils', () => {
       await expect(trimSyncFrames('/input/video.webm', '/output/video.mp4', 5, 40)).rejects.toThrow('ffmpeg failed');
     });
   });
+
+  describe('volume calculations in concatAudioWithGaps', () => {
+    it('should apply volume 1.0 for narration segments', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/audio/narration.mp3', startTimeMs: 0, durationMs: 1000, type: 'narration' },
+      ];
+
+      await concatAudioWithGaps(segments, '/tmp/output.wav');
+
+      const command = mockExec.mock.calls[0][0];
+      expect(command).toContain('volume=1');
+    });
+
+    it('should apply volume 0.5 for click segments', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/audio/click.mp3', startTimeMs: 0, durationMs: 100, type: 'click' },
+      ];
+
+      await concatAudioWithGaps(segments, '/tmp/output.wav');
+
+      const command = mockExec.mock.calls[0][0];
+      expect(command).toContain('volume=0.5');
+    });
+
+    it('should apply volume 0.05 for keypress segments', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/audio/keypress-letter-1.mp3', startTimeMs: 0, durationMs: 50, type: 'keypress-letter-1' },
+      ];
+
+      await concatAudioWithGaps(segments, '/tmp/output.wav');
+
+      const command = mockExec.mock.calls[0][0];
+      expect(command).toContain('volume=0.05');
+    });
+
+    it('should apply correct volume for all three segment types', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/audio/narration.mp3', startTimeMs: 0, durationMs: 1000, type: 'narration' },
+        { path: '/tmp/audio/click.mp3', startTimeMs: 100, durationMs: 100, type: 'click' },
+        { path: '/tmp/audio/keypress.mp3', startTimeMs: 200, durationMs: 50, type: 'keypress-letter-1' },
+      ];
+
+      await concatAudioWithGaps(segments, '/tmp/output.wav');
+
+      const command = mockExec.mock.calls[0][0];
+      // Verify all three volumes are in the command
+      expect(command).toContain('volume=1');
+      expect(command).toContain('volume=0.5');
+      expect(command).toContain('volume=0.05');
+    });
+
+    it('should handle offset adjustment with Math.max correctly', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/audio1.mp3', startTimeMs: 100, durationMs: 100, type: 'click' },
+      ];
+
+      // Offset is 200, so adjusted time should be max(0, 100-200) = 0
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 200);
+
+      const command = mockExec.mock.calls[0][0];
+      // adelay should be 0|0 since adjusted time is 0
+      expect(command).toContain('adelay=0|0');
+    });
+
+    it('should handle positive adjusted time after offset', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/audio1.mp3', startTimeMs: 500, durationMs: 100, type: 'click' },
+      ];
+
+      // Offset is 200, so adjusted time should be 500-200 = 300
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 200);
+
+      const command = mockExec.mock.calls[0][0];
+      // adelay should be 300|300
+      expect(command).toContain('adelay=300|300');
+    });
+  });
 });

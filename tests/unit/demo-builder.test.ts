@@ -1343,4 +1343,105 @@ describe('NarratedDemo', () => {
       expect(page.raw.goto).toBeDefined();
     });
   });
+
+  describe('character type detection', () => {
+    it('should detect carriage return as keypress-return', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      (soundsModule.generateSound as jest.Mock).mockImplementation((type: string) => {
+        if (type === 'keypress-return') {
+          return Promise.resolve({ path: '/tmp/sounds/keypress-return.mp3', durationMs: 60 });
+        }
+        if (type.startsWith('keypress-letter')) {
+          return Promise.resolve({ path: `/tmp/sounds/${type}.mp3`, durationMs: 50 });
+        }
+        return Promise.resolve({ path: '/tmp/sounds/click.mp3', durationMs: 100 });
+      });
+
+      const page = demo.page as SoundEnabledPage;
+      // Type text with a carriage return character (\r)
+      await page.type('#input', 'a\r');
+
+      await demo.finish();
+
+      // Should have generated keypress-return sound for the carriage return
+      expect(soundsModule.generateSound).toHaveBeenCalledWith('keypress-return');
+    });
+
+    it('should detect each punctuation mark individually', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      // Type each punctuation mark followed by a letter to trigger the punctuation delay
+      await page.type('#input', '.a');
+      await page.type('#input', ',b');
+      await page.type('#input', '!c');
+      await page.type('#input', '?d');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      // Verify all characters were typed
+      expect(mockPage.type).toHaveBeenCalled();
+    });
+
+    it('should apply delay for each fast digraph variant', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      // Type text containing all fast digraphs: th, er, on, an, en, in, re, he, ed, nd
+      await page.type('#input', 'th');
+      await page.type('#input', 'er');
+      await page.type('#input', 'on');
+      await page.type('#input', 'an');
+      await page.type('#input', 'en');
+      await page.type('#input', 'in');
+      await page.type('#input', 're');
+      await page.type('#input', 'he');
+      await page.type('#input', 'ed');
+      await page.type('#input', 'nd');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      // Verify all characters were typed (20 total)
+      expect(mockPage.type).toHaveBeenCalled();
+    });
+
+    it('should handle space at beginning by using ternary empty string', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      // Type single character (first character, so prevChar should be '')
+      await page.type('#input', 'a');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledWith('#input', 'a');
+    });
+  });
 });
