@@ -4,6 +4,7 @@ import { pipeline } from 'stream/promises';
 import { join } from 'path';
 import { execSync } from 'child_process';
 import { getAudioDuration } from './audio-utils';
+import { cleanupTempFile, cleanupOutputFile } from './file-utils';
 
 /**
  * Target duration for keyboard sounds in seconds.
@@ -170,9 +171,7 @@ export async function generateSound(type: SoundType): Promise<SoundResult> {
     );
 
     // Clean up temp file
-    if (existsSync(tempPath)) {
-      unlinkSync(tempPath);
-    }
+    cleanupTempFile(tempPath);
 
     // Validate the output file
     if (isValidSoundFile(outputPath)) {
@@ -180,9 +179,7 @@ export async function generateSound(type: SoundType): Promise<SoundResult> {
     }
 
     // Delete invalid file before retry
-    if (existsSync(outputPath)) {
-      unlinkSync(outputPath);
-    }
+    cleanupOutputFile(outputPath);
 
     if (attempt === MAX_GENERATION_RETRIES) {
       throw new Error(

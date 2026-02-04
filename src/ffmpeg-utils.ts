@@ -4,6 +4,13 @@ import { mkdir, readdir, unlink, rmdir } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { AudioSegment } from './types';
+import { 
+  formatSegmentLog, 
+  formatContinuationMessage, 
+  shouldLogContinuation,
+  formatAdelayLog,
+  getSegmentsToLog
+} from './logging-utils';
 
 const execAsync = promisify(exec);
 
@@ -33,11 +40,11 @@ export async function concatAudioWithGaps(
   for (const seg of sortedSegments.slice(0, 10)) {
     const adjustedTime = Math.max(0, seg.startTimeMs - offsetMs);
     // eslint-disable-next-line no-console
-    console.log(`  [FFMPEG] segment startTimeMs=${seg.startTimeMs} -> adjusted=${adjustedTime}, path=${seg.path.split('/').pop()}`);
+    console.log(formatSegmentLog(seg, adjustedTime));
   }
-  if (sortedSegments.length > 10) {
+  if (shouldLogContinuation(sortedSegments.length)) {
     // eslint-disable-next-line no-console
-    console.log(`  [FFMPEG] ... and ${sortedSegments.length - 10} more segments`);
+    console.log(formatContinuationMessage(sortedSegments.length));
   }
 
   // Build ffmpeg filter complex for mixing audio at correct times
@@ -65,10 +72,11 @@ export async function concatAudioWithGaps(
   // Log the adelay values being used (showing original and adjusted)
   // eslint-disable-next-line no-console
   console.log(`[FFMPEG] adelay values (first 10), offset=${offsetMs}ms:`);
-  for (let i = 0; i < Math.min(10, sortedSegments.length); i++) {
+  const segmentsToLog = getSegmentsToLog(sortedSegments);
+  for (let i = 0; i < segmentsToLog; i++) {
     const adjustedTime = Math.max(0, sortedSegments[i].startTimeMs - offsetMs);
     // eslint-disable-next-line no-console
-    console.log(`  [${i}] original=${sortedSegments[i].startTimeMs}ms -> adelay=${adjustedTime}ms`);
+    console.log(formatAdelayLog(i, sortedSegments[i].startTimeMs, adjustedTime));
   }
 
   await execAsync(command);
