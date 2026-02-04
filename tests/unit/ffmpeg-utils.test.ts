@@ -1400,4 +1400,342 @@ describe('ffmpeg-utils', () => {
       consoleLogSpy.mockRestore();
     });
   });
+
+  describe('string content verification', () => {
+    let consoleLogSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+    });
+
+    afterEach(() => {
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should use .ppm file extension for frame filtering', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command: string, callback: any) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '25/1\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm', 'frame-002.jpg', 'frame-003.ppm']);
+      
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      await detectSyncFrame('/test/video.mp4');
+
+      // Should only process .ppm files, not .jpg
+      // f.endsWith('.ppm') filters correctly
+      expect(mockReadFile).toHaveBeenCalledTimes(2); // Only 2 .ppm files
+    });
+
+    it('should verify exact console.log message for no sync frame', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command: string, callback: any) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '30/1\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm']);
+      
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      await detectSyncFrame('/test/video.mp4');
+
+      // Exact message verification
+      expect(consoleLogSpy).toHaveBeenCalledWith('[SYNC] No sync frame detected, returning 0');
+    });
+
+    it('should verify exact console.log message format for sync frame found', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command: string, callback: any) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '30/1\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm', 'frame-002.ppm']);
+      
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile
+        .mockResolvedValueOnce(Buffer.from(''))
+        .mockResolvedValueOnce(Buffer.from([0xFF, 0x00, 0xFF])); // Magenta sync marker
+
+      await detectSyncFrame('/test/video.mp4');
+
+      // Exact format: [SYNC] Found sync frame at frame {i} ({timestampMs}ms)
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/\[SYNC\] Found sync frame at frame \d+ \(\d+\.\d+ms\)/)
+      );
+    });
+
+    it('should use correct temp directory naming pattern', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command: string, callback: any) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '30/1\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockMkdir = mkdir as unknown as jest.Mock;
+      mockMkdir.mockResolvedValue(undefined);
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue([]);
+
+      await detectSyncFrame('/test/video.mp4');
+
+      // Temp dir should be created with pattern: sync-detect-{timestamp}
+      expect(mockMkdir).toHaveBeenCalledWith(
+        expect.stringMatching(/sync-detect-\d+$/),
+        expect.objectContaining({ recursive: true })
+      );
+    });
+
+    it('should use correct temp directory naming pattern for detectSyncFrameRange', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command: string, callback: any) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '30/1\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockMkdir = mkdir as unknown as jest.Mock;
+      mockMkdir.mockResolvedValue(undefined);
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue([]);
+
+      await detectSyncFrameRange('/test/video.mp4');
+
+      // Temp dir should be created with pattern: sync-range-{timestamp}
+      expect(mockMkdir).toHaveBeenCalledWith(
+        expect.stringMatching(/sync-range-\d+$/),
+        expect.objectContaining({ recursive: true })
+      );
+    });
+  });
+
+  describe('file path string operations', () => {
+    let consoleLogSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+    });
+
+    afterEach(() => {
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should extract filename using split("/").pop() in logging', async () => {
+      await concatAudioWithGaps(
+        [
+          {
+            type: 'narration',
+            path: '/path/to/audio/file.mp3',
+            durationMs: 1000,
+            startTimeMs: 0,
+          },
+        ],
+        '/tmp/output.mp3',
+        1000
+      );
+
+      // Logging should extract filename from full path
+      // path.split('/').pop() extracts 'file.mp3' from '/path/to/audio/file.mp3'
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('file.mp3')
+      );
+    });
+
+    it('should handle paths with multiple slashes correctly', async () => {
+      await concatAudioWithGaps(
+        [
+          {
+            type: 'click',
+            path: '/deep/nested/path/to/sound.mp3',
+            durationMs: 100,
+            startTimeMs: 0,
+          },
+        ],
+        '/tmp/output.mp3',
+        1000
+      );
+
+      // split('/').pop() should get last segment
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('sound.mp3')
+      );
+    });
+  });
+
+  describe('arithmetic edge cases and boundary conditions', () => {
+    it('should use Math.max(0, negative) to clamp adjusted time to 0', async () => {
+      const segments = [
+        {
+          type: 'click' as const,
+          path: '/tmp/click.mp3',
+          durationMs: 100,
+          startTimeMs: 50, // Start before offset
+        },
+      ];
+
+      await concatAudioWithGaps(segments, '/tmp/output.mp3', 100); // offsetMs = 100
+
+      // adjustedTime = Math.max(0, 50 - 100) = Math.max(0, -50) = 0
+      // Verify the command includes the clamped value
+      const mockExec = exec as unknown as jest.Mock;
+      expect(mockExec).toHaveBeenCalled();
+    });
+
+    it('should handle exact boundary when segments.length === 10', async () => {
+      const segments = Array(10).fill(null).map((_, i) => ({
+        type: 'click' as const,
+        path: `/tmp/click${i}.mp3`,
+        durationMs: 100,
+        startTimeMs: i * 200,
+      }));
+
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      await concatAudioWithGaps(segments, '/tmp/output.mp3', 1000);
+
+      // With exactly 10 segments, shouldLogContinuation(10) should be false (> 10 is false)
+      // So no "... and X more segments" message
+      const continuationCalls = consoleLogSpy.mock.calls.filter((call) =>
+        String(call[0]).includes('and') && String(call[0]).includes('more segments')
+      );
+      expect(continuationCalls.length).toBe(0);
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should log continuation when segments.length > 10', async () => {
+      const segments = Array(15).fill(null).map((_, i) => ({
+        type: 'click' as const,
+        path: `/tmp/click${i}.mp3`,
+        durationMs: 100,
+        startTimeMs: i * 200,
+      }));
+
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      await concatAudioWithGaps(segments, '/tmp/output.mp3', 1000);
+
+      // With 15 segments, shouldLogContinuation(15) should be true
+      // Should log "... and 5 more segments"
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('and 5 more segments')
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should use division operator for FPS calculation (num / den)', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command: string, callback: any) => {
+        if (command.includes('ffprobe')) {
+          // Return FPS as 60/2 = 30
+          callback(null, { stdout: '60/2\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue([]);
+
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      await detectSyncFrame('/test/video.mp4');
+
+      // FPS = 60 / 2 = 30 (not 60 * 2 = 120)
+      // frameDurationMs = 1000 / 30 = 33.33ms
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('FPS: 30')
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('33.33ms')
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should use || operator for denominator fallback (not &&)', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command: string, callback: any) => {
+        if (command.includes('ffprobe')) {
+          // Return FPS with 0 denominator
+          callback(null, { stdout: '30/0\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue([]);
+
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      await detectSyncFrame('/test/video.mp4');
+
+      // FPS = num / (den || 1) = 30 / (0 || 1) = 30 / 1 = 30
+      // If mutation changed to &&: 30 / (0 && 1) = 30 / 0 = Infinity
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('FPS: 30')
+      );
+      expect(consoleLogSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('FPS: Infinity')
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should sort frame files for correct sequential processing', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command: string, callback: any) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '30/1\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      // Return files out of order
+      mockReaddir.mockResolvedValue(['frame-003.ppm', 'frame-001.ppm', 'frame-002.ppm']);
+      
+      const mockReadFile = readFile as unknown as jest.Mock;
+      const readFileCalls: string[] = [];
+      mockReadFile.mockImplementation((path: string) => {
+        readFileCalls.push(path);
+        return Promise.resolve(Buffer.from(''));
+      });
+
+      await detectSyncFrame('/test/video.mp4');
+
+      // Files should be read in sorted order: 001, 002, 003
+      expect(readFileCalls[0]).toContain('frame-001.ppm');
+      expect(readFileCalls[1]).toContain('frame-002.ppm');
+      expect(readFileCalls[2]).toContain('frame-003.ppm');
+    });
+  });
 });

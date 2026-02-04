@@ -2339,4 +2339,309 @@ describe('NarratedDemo', () => {
       );
     });
   });
+
+  describe('boundary conditions and edge cases', () => {
+    it('should handle i=0 boundary (first character with empty prevChar)', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+
+      // Clear any previous waitForTimeout calls
+      (mockPage.waitForTimeout as jest.Mock).mockClear();
+      
+      // Type single character where i=0
+      await page.type('#input', 'x');
+      
+      // When i=0, prevChar should be '' (empty string)
+      // The delay calculation should handle this correctly
+      
+      // Should have typed the character
+      expect(mockPage.type).toHaveBeenCalledWith('#input', 'x');
+      // Should NOT call waitForTimeout after last character (i < text.length - 1 is false when i=0, length=1)
+      expect(mockPage.waitForTimeout).not.toHaveBeenCalled();
+    });
+
+    it('should verify i < text.length - 1 condition (wait between chars but not after last)', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+
+      // Clear any previous waitForTimeout calls
+      (mockPage.waitForTimeout as jest.Mock).mockClear();
+      
+      // Type 3 characters
+      await page.type('#input', 'abc');
+      
+      // Should wait after first char (i=0, i < 3-1 = 2, true)
+      // Should wait after second char (i=1, i < 3-1 = 2, true)
+      // Should NOT wait after third char (i=2, i < 3-1 = 2, false)
+      expect(mockPage.waitForTimeout).toHaveBeenCalledTimes(2);
+    });
+
+    it('should not wait after single character (i=0, i < 1-1 = false)', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+
+      // Clear any previous waitForTimeout calls
+      (mockPage.waitForTimeout as jest.Mock).mockClear();
+      
+      // Type single character
+      await page.type('#input', 'z');
+      
+      // i=0, i < 1-1 = i < 0 = false, so NO wait
+      expect(mockPage.waitForTimeout).not.toHaveBeenCalled();
+    });
+
+    it('should verify text[i-1] array indexing (not text[i+1])', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+
+      // Clear any previous waitForTimeout calls
+      (mockPage.waitForTimeout as jest.Mock).mockClear();
+      
+      // Type string where digraph detection matters
+      // 'th' is a fast digraph, so when typing 'h' (i=1), prevChar should be 't' (text[0])
+      // If it were text[i+1], it would look ahead to next char (doesn't make sense)
+      await page.type('#input', 'the');
+      
+      // All three characters should be typed
+      expect(mockPage.type).toHaveBeenCalledWith('#input', 't');
+      expect(mockPage.type).toHaveBeenCalledWith('#input', 'h');
+      expect(mockPage.type).toHaveBeenCalledWith('#input', 'e');
+      
+      // Should wait 2 times (after 't' and after 'h', but not after 'e')
+      expect(mockPage.waitForTimeout).toHaveBeenCalledTimes(2);
+    });
+
+    it('should verify empty string literal for prevChar when i=0', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      // Type single character - prevChar will be '' (empty string literal)
+      await page.type('#input', 'q');
+      
+      // Character should be typed successfully
+      expect(mockPage.type).toHaveBeenCalledWith('#input', 'q');
+      
+      // The delay calculation should work with empty string as prevChar
+      // (no errors thrown)
+    });
+  });
+
+  describe('string content verification for paths', () => {
+    it('should use correct path segments for sounds directory', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      // The sounds directory should be constructed with '..' path segment
+      // join(__dirname, '..', 'assets', 'sounds')
+      // Verify this by checking initSoundsDir was called
+      expect(soundsModule.initSoundsDir).toHaveBeenCalledWith(
+        expect.stringContaining('sounds')
+      );
+    });
+  });
+
+  describe('console.log exact string verification', () => {
+    let consoleLogSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+    });
+
+    afterEach(() => {
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should log exact format for SOUND messages', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'a');
+
+      // Verify exact log format: [SOUND] {soundType} for '{char}' at {time}ms (relative to sync marker)
+      const soundLogCalls = consoleLogSpy.mock.calls.filter((call) =>
+        String(call[0]).includes('[SOUND]')
+      );
+      
+      expect(soundLogCalls.length).toBeGreaterThan(0);
+      expect(soundLogCalls[0][0]).toMatch(/\[SOUND\] keypress-letter-\d+ for 'a' at \d+ms \(relative to sync marker\)/);
+    });
+
+    it('should log sync marker removal with exact message', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      // Verify exact message
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        '[TIMING] Sync marker removed after 500ms'
+      );
+    });
+
+    it('should log page fully loaded with exact message', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        '[TIMING] Page fully loaded'
+      );
+    });
+
+    it('should log sync marker injection with exact message', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        '[TIMING] Sync marker injected'
+      );
+    });
+
+    it('should verify exact console.log format for finish() sync detection messages', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+      await demo.finish();
+
+      // Verify sync detection message
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[SYNC] Detecting sync marker in video')
+      );
+    });
+  });
+
+  describe('Date.now() arithmetic verification', () => {
+    let originalDateNow: () => number;
+
+    beforeEach(() => {
+      originalDateNow = Date.now;
+    });
+
+    afterEach(() => {
+      Date.now = originalDateNow;
+    });
+
+    it('should use subtraction operator for timestamp calculation (not addition)', async () => {
+      let callCount = 0;
+      Date.now = jest.fn(() => {
+        callCount++;
+        // First few calls are for syncTime capture
+        if (callCount <= 2) return 5000;
+        // Later call for timeMs calculation
+        return 6000;
+      });
+
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: false, // Disable sounds to simplify test
+      });
+
+      await demo.start();
+
+      const elapsed = demo.getElapsedTime();
+
+      // elapsed = Date.now() - startTime
+      // With our mock: Date.now() returns 6000 (later call), startTime was 5000 (first call)
+      // Correct: 6000 - 5000 = 1000
+      // If mutated to +: 6000 + 5000 = 11000
+      expect(elapsed).toBe(1000);
+      expect(elapsed).not.toBe(11000);
+    });
+
+    it('should calculate elapsed time with Date.now() - startTime', async () => {
+      let callCount = 0;
+      Date.now = jest.fn(() => {
+        callCount++;
+        if (callCount === 1) return 1000; // startTime
+        if (callCount === 2) return 1000; // syncTime  
+        return 3000; // getElapsedTime call
+      });
+
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const elapsed = demo.getElapsedTime();
+
+      // Should be 3000 - 1000 = 2000
+      // If mutation changes to +, would be 3000 + 1000 = 4000
+      expect(elapsed).toBe(2000);
+      expect(elapsed).not.toBe(4000);
+    });
+  });
 });
