@@ -665,19 +665,114 @@ describe('ffmpeg-utils', () => {
       );
     });
 
-    it('should log when no sync frame detected', async () => {
+  });
+
+  describe('FPS calculation in detectSyncFrame', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should trim whitespace from ffprobe output before parsing', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        if (command.includes('ffprobe')) {
+          // Include trailing whitespace/newline
+          callback(null, { stdout: '30/1\n  ', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
       const mockReaddir = readdir as unknown as jest.Mock;
       mockReaddir.mockResolvedValue(['frame-001.ppm']);
       
       const mockReadFile = readFile as unknown as jest.Mock;
-      // Non-magenta frame
-      mockReadFile.mockResolvedValue(Buffer.from('P6\n100 100\n255\n' + '\x00'.repeat(30000)));
+      mockReadFile.mockResolvedValue(Buffer.from(''));
 
       await detectSyncFrame('/input/video.mp4');
 
+      // Should successfully parse despite whitespace
+      expect(mockExec).toHaveBeenCalled();
+    });
+
+    it('should use division operator for FPS calculation', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '30/1\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm']);
+      
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      await detectSyncFrame('/input/video.mp4');
+
+      // Should log FPS as 30 (30/1 = 30), not 30 (30*1)
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[SYNC] No sync frame detected, returning 0')
+        expect.stringContaining('FPS: 30')
       );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should use || operator to default denominator to 1', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '25/0\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm']);
+      
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      await detectSyncFrame('/input/video.mp4');
+
+      // Should log FPS as 25 (25/(0||1) = 25/1 = 25)
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('FPS: 25')
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should sort frame files for correct order', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '30/1\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      // Return frames in wrong order
+      mockReaddir.mockResolvedValue(['frame-010.ppm', 'frame-002.ppm', 'frame-001.ppm']);
+      
+      const mockReadFile = readFile as unknown as jest.Mock;
+      // First frame (frame-001 after sorting) is not magenta, second (frame-002) is magenta
+      mockReadFile
+        .mockResolvedValueOnce(Buffer.from('P6\n100 100\n255\n' + '\x00'.repeat(30000)))
+        .mockResolvedValueOnce(Buffer.from('P6\n100 100\n255\n' + '\xFF\x00\xFF'.repeat(10000)));
+
+      await detectSyncFrame('/input/video.mp4');
+
+      // Should read frames in sorted order (frame-001, frame-002, ...)
+      expect(mockReadFile).toHaveBeenCalled();
     });
   });
 

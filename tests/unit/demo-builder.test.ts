@@ -1456,7 +1456,7 @@ describe('NarratedDemo', () => {
       mathRandomSpy.mockRestore();
     });
 
-    it('should use Math.random for human reaction delay in click', async () => {
+    it('should use Math.random with addition for human reaction delay in click', async () => {
       const demo = new NarratedDemo({
         baseUrl: 'http://localhost:3000',
         output: '/tmp/output/demo.mp4',
@@ -1467,18 +1467,21 @@ describe('NarratedDemo', () => {
       mathRandomSpy.mockReturnValue(0.5); // Middle of range
 
       const page = demo.page as SoundEnabledPage;
-      await page.click('#button');
-
-      // Should have called waitForTimeout with 100 + 0.5 * 100 = 150ms
+      
       const mockBrowser = await chromium.launch();
       const mockContext = await mockBrowser.newContext();
       const mockPage = await mockContext.newPage();
       
-      // Verify waitForTimeout was called (human reaction delay)
-      expect(mockPage.waitForTimeout).toHaveBeenCalled();
+      await page.click('#button');
+
+      // Should have called waitForTimeout with 100 + 0.5 * 100 = 150ms for human reaction
+      // Also 200ms for scroll delay
+      const calls = (mockPage.waitForTimeout as jest.Mock).mock.calls;
+      const hasExpectedDelay = calls.some((call: any[]) => call[0] === 150);
+      expect(hasExpectedDelay).toBe(true);
     });
 
-    it('should use Math.random for random delay variation in typing', async () => {
+    it('should use Math.random with multiplication for delay variation', async () => {
       const demo = new NarratedDemo({
         baseUrl: 'http://localhost:3000',
         output: '/tmp/output/demo.mp4',
@@ -1486,7 +1489,7 @@ describe('NarratedDemo', () => {
       });
       await demo.start();
 
-      mathRandomSpy.mockReturnValue(0.3); // Specific value
+      mathRandomSpy.mockReturnValue(0.5); // Middle of range
 
       const page = demo.page as SoundEnabledPage;
       await page.type('#input', 'a');
@@ -1495,11 +1498,11 @@ describe('NarratedDemo', () => {
       const mockContext = await mockBrowser.newContext();
       const mockPage = await mockContext.newPage();
       
-      // Should have typed the character
+      // Should have typed the character with delay calculation
       expect(mockPage.type).toHaveBeenCalled();
     });
 
-    it('should handle Math.random at minimum (0.0)', async () => {
+    it('should handle Math.random at minimum (0.0) for min delay', async () => {
       const demo = new NarratedDemo({
         baseUrl: 'http://localhost:3000',
         output: '/tmp/output/demo.mp4',
@@ -1510,16 +1513,20 @@ describe('NarratedDemo', () => {
       mathRandomSpy.mockReturnValue(0.0); // Minimum
 
       const page = demo.page as SoundEnabledPage;
-      await page.type('#input', 'x');
-
+      
       const mockBrowser = await chromium.launch();
       const mockContext = await mockBrowser.newContext();
       const mockPage = await mockContext.newPage();
       
-      expect(mockPage.type).toHaveBeenCalled();
+      await page.click('#button');
+
+      // Should have called waitForTimeout with 100 + 0.0 * 100 = 100ms
+      const calls = (mockPage.waitForTimeout as jest.Mock).mock.calls;
+      const hasMinDelay = calls.some((call: any[]) => call[0] === 100);
+      expect(hasMinDelay).toBe(true);
     });
 
-    it('should handle Math.random at maximum (~1.0)', async () => {
+    it('should handle Math.random at maximum (~1.0) for max delay', async () => {
       const demo = new NarratedDemo({
         baseUrl: 'http://localhost:3000',
         output: '/tmp/output/demo.mp4',
@@ -1530,13 +1537,17 @@ describe('NarratedDemo', () => {
       mathRandomSpy.mockReturnValue(0.999); // Near maximum
 
       const page = demo.page as SoundEnabledPage;
-      await page.type('#input', 'y');
-
+      
       const mockBrowser = await chromium.launch();
       const mockContext = await mockBrowser.newContext();
       const mockPage = await mockContext.newPage();
       
-      expect(mockPage.type).toHaveBeenCalled();
+      await page.click('#button');
+
+      // Should have called waitForTimeout with 100 + 0.999 * 100 ≈ 199.9ms
+      const calls = (mockPage.waitForTimeout as jest.Mock).mock.calls;
+      const hasMaxDelay = calls.some((call: any[]) => Math.abs(call[0] - 199.9) < 1);
+      expect(hasMaxDelay).toBe(true);
     });
   });
 
