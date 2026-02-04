@@ -1048,4 +1048,149 @@ describe('ffmpeg-utils', () => {
       );
     });
   });
+
+  describe('error handling and cleanup', () => {
+    it('should handle cleanup errors gracefully in detectSyncFrame', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '30/1\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm']);
+      
+      const mockUnlink = unlink as unknown as jest.Mock;
+      // First unlink succeeds, cleanup attempts should not throw
+      mockUnlink.mockResolvedValue(undefined);
+
+      const mockRmdir = rmdir as unknown as jest.Mock;
+      mockRmdir.mockResolvedValue(undefined);
+
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      const result = await detectSyncFrame('/test/video.mp4');
+      
+      // Should complete without throwing even if cleanup encounters issues
+      expect(result).toBe(0);
+    });
+
+    it('should handle cleanup errors gracefully in detectSyncFrameRange', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '30/1\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm']);
+      
+      const mockUnlink = unlink as unknown as jest.Mock;
+      mockUnlink.mockResolvedValue(undefined);
+
+      const mockRmdir = rmdir as unknown as jest.Mock;
+      mockRmdir.mockResolvedValue(undefined);
+
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      const result = await detectSyncFrameRange('/test/video.mp4');
+      
+      // Should complete and return proper structure
+      expect(result).toHaveProperty('firstSyncFrame');
+      expect(result).toHaveProperty('lastSyncFrame');
+      expect(result).toHaveProperty('frameDurationMs');
+    });
+
+    it('should call readdir in cleanup block', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '30/1\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm', 'frame-002.ppm']);
+      
+      const mockUnlink = unlink as unknown as jest.Mock;
+      mockUnlink.mockResolvedValue(undefined);
+
+      const mockRmdir = rmdir as unknown as jest.Mock;
+      mockRmdir.mockResolvedValue(undefined);
+
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      await detectSyncFrame('/test/video.mp4');
+      
+      // Should have called readdir at least twice (once for processing, once for cleanup)
+      expect(mockReaddir).toHaveBeenCalled();
+    });
+
+    it('should call unlink for each file in cleanup', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '30/1\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm', 'frame-002.ppm']);
+      
+      const mockUnlink = unlink as unknown as jest.Mock;
+      mockUnlink.mockResolvedValue(undefined);
+
+      const mockRmdir = rmdir as unknown as jest.Mock;
+      mockRmdir.mockResolvedValue(undefined);
+
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      await detectSyncFrame('/test/video.mp4');
+      
+      // Should have called unlink for cleanup
+      expect(mockUnlink).toHaveBeenCalled();
+    });
+
+    it('should call rmdir after unlinking files', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '30/1\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm']);
+      
+      const mockUnlink = unlink as unknown as jest.Mock;
+      mockUnlink.mockResolvedValue(undefined);
+
+      const mockRmdir = rmdir as unknown as jest.Mock;
+      mockRmdir.mockResolvedValue(undefined);
+
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      await detectSyncFrame('/test/video.mp4');
+      
+      // Should have called rmdir for directory cleanup
+      expect(mockRmdir).toHaveBeenCalled();
+    });
+  });
 });

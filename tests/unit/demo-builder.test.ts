@@ -1844,4 +1844,106 @@ describe('NarratedDemo', () => {
       expect(mockPage.type).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe('console logging behavior', () => {
+    let consoleLogSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+    });
+
+    afterEach(() => {
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should log page fully loaded message', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      
+      await demo.start();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[TIMING] Page fully loaded')
+      );
+    });
+
+    it('should log start time capture', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      
+      await demo.start();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/\[TIMING\] startTime captured: \d+/)
+      );
+    });
+
+    it('should log sync marker injection', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      
+      await demo.start();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[TIMING] Sync marker injected')
+      );
+    });
+
+    it('should log sync time capture', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      
+      await demo.start();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/\[TIMING\] syncTime captured: \d+/)
+      );
+    });
+
+    it('should log sync marker removal', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      
+      await demo.start();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[TIMING] Sync marker removed after 500ms')
+      );
+    });
+
+    it('should log sound recording for each character typed', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'ab');
+
+      // Should log for each character
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/\[SOUND\] keypress-letter-\d+ for 'a' at \d+ms/)
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/\[SOUND\] keypress-letter-\d+ for 'b' at \d+ms/)
+      );
+    });
+  });
 });
