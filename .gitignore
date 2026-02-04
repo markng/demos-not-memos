@@ -37,3 +37,4 @@ npm-debug.log*
 # Test reports
 reports/
 coverage/
+.stryker-tmp/
