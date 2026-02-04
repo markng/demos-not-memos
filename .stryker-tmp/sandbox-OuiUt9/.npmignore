@@ -1,0 +1,28 @@
+# Source files (dist/ has compiled JS)
+src/
+*.ts
+!*.d.ts
+
+# Development
+demos/
+tests/
+coverage/
+.github/
+.vscode/
+output/
+reports/
+scripts/
+assets/
+
+# Config files
+tsconfig.json
+jest.config.js
+stryker.config.json
+stryker.config.mjs
+.prettierrc
+.eslintrc*
+
+# Other
+*.log
+.DS_Store
+.stryker-tmp/
