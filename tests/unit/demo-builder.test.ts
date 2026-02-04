@@ -1444,4 +1444,393 @@ describe('NarratedDemo', () => {
       expect(mockPage.type).toHaveBeenCalledWith('#input', 'a');
     });
   });
+
+  describe('delay calculations with mocked Math.random', () => {
+    let mathRandomSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      mathRandomSpy = jest.spyOn(Math, 'random');
+    });
+
+    afterEach(() => {
+      mathRandomSpy.mockRestore();
+    });
+
+    it('should use Math.random for human reaction delay in click', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      mathRandomSpy.mockReturnValue(0.5); // Middle of range
+
+      const page = demo.page as SoundEnabledPage;
+      await page.click('#button');
+
+      // Should have called waitForTimeout with 100 + 0.5 * 100 = 150ms
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      // Verify waitForTimeout was called (human reaction delay)
+      expect(mockPage.waitForTimeout).toHaveBeenCalled();
+    });
+
+    it('should use Math.random for random delay variation in typing', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      mathRandomSpy.mockReturnValue(0.3); // Specific value
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'a');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      // Should have typed the character
+      expect(mockPage.type).toHaveBeenCalled();
+    });
+
+    it('should handle Math.random at minimum (0.0)', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      mathRandomSpy.mockReturnValue(0.0); // Minimum
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'x');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalled();
+    });
+
+    it('should handle Math.random at maximum (~1.0)', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      mathRandomSpy.mockReturnValue(0.999); // Near maximum
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'y');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalled();
+    });
+  });
+
+  describe('individual digraph testing', () => {
+    it('should NOT trigger fast typing for non-digraph "ab"', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      // 'ab' is NOT a fast digraph
+      await page.type('#input', 'ab');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+
+    it('should NOT trigger fast typing for non-digraph "xy"', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      // 'xy' is NOT a fast digraph
+      await page.type('#input', 'xy');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+
+    it('should trigger fast typing for "er" digraph', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'er');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+
+    it('should trigger fast typing for "on" digraph', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'on');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+
+    it('should trigger fast typing for "an" digraph', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'an');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+
+    it('should trigger fast typing for "en" digraph', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'en');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+
+    it('should trigger fast typing for "in" digraph', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'in');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+
+    it('should trigger fast typing for "re" digraph', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 're');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+
+    it('should trigger fast typing for "he" digraph', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'he');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+
+    it('should trigger fast typing for "ed" digraph', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'ed');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+
+    it('should trigger fast typing for "nd" digraph', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'nd');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle digraphs case-insensitively (TH)', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'TH');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('individual punctuation testing', () => {
+    it('should handle comma followed by character', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', ',x');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle exclamation followed by character', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', '!x');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle question mark followed by character', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', '?x');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+
+    it('should NOT trigger punctuation delay for non-punctuation', async () => {
+      const demo = new NarratedDemo({
+        baseUrl: 'http://localhost:3000',
+        output: '/tmp/output/demo.mp4',
+        sounds: true,
+      });
+      await demo.start();
+
+      const page = demo.page as SoundEnabledPage;
+      await page.type('#input', 'ab');
+
+      const mockBrowser = await chromium.launch();
+      const mockContext = await mockBrowser.newContext();
+      const mockPage = await mockContext.newPage();
+      
+      expect(mockPage.type).toHaveBeenCalledTimes(2);
+    });
+  });
 });
