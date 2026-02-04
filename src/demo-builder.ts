@@ -5,6 +5,13 @@ import { DemoConfig, DemoState, DEFAULT_CONFIG } from './types';
 import { Narration } from './narration';
 import { concatAudioWithGaps, mergeAudioVideo, detectSyncFrameRange, trimSyncFrames } from './ffmpeg-utils';
 import { generateSound, initSoundsDir, SoundType, getVariantSoundType } from './sounds';
+import { 
+  TIMING_CONSTANTS, 
+  calculateHumanReactionDelay, 
+  calculateKeypressDelay,
+  RandomNumberGenerator,
+  DefaultRNG
+} from './timing-utils';
 
 /**
  * A wrapped page that intercepts click and type operations
@@ -15,17 +22,20 @@ export class SoundEnabledPage {
   private recordTimestamp: (type: SoundType) => void;
   private pendingSoundTimestamps: Array<{ type: SoundType; timeMs: number }>;
   private state: DemoState;
+  private rng: RandomNumberGenerator;
 
   constructor(
     page: Page,
     recordTimestamp: (type: SoundType) => void,
     pendingSoundTimestamps: Array<{ type: SoundType; timeMs: number }>,
-    state: DemoState
+    state: DemoState,
+    rng: RandomNumberGenerator = new DefaultRNG()
   ) {
     this.originalPage = page;
     this.recordTimestamp = recordTimestamp;
     this.pendingSoundTimestamps = pendingSoundTimestamps;
     this.state = state;
+    this.rng = rng;
   }
 
   private recordTimestampAt(type: SoundType, timeMs: number): void {
@@ -49,10 +59,10 @@ export class SoundEnabledPage {
     await locator.scrollIntoViewIfNeeded();
 
     // Add extra delay to simulate smooth scrolling feel
-    await this.originalPage.waitForTimeout(200);
+    await this.originalPage.waitForTimeout(TIMING_CONSTANTS.SCROLL_DELAY_MS);
 
     // Human reaction delay (100-200ms)
-    await this.originalPage.waitForTimeout(100 + Math.random() * 100);
+    await this.originalPage.waitForTimeout(calculateHumanReactionDelay(this.rng.random()));
 
     this.recordTimestamp('click');
     await this.originalPage.click(selector);
@@ -70,30 +80,10 @@ export class SoundEnabledPage {
 
   /**
    * Calculate variable delay between keypresses for natural typing feel
+   * Now delegates to the extracted timing utility function
    */
   private getKeypressDelay(prevChar: string, currentChar: string, baseDelay: number): number {
-    let delay = baseDelay;
-
-    // 1. Random variation (+/- 30%)
-    delay *= 0.7 + Math.random() * 0.6;
-
-    // 2. Common digraphs are faster (th, er, on, an, etc.)
-    const fastDigraphs = ['th', 'er', 'on', 'an', 'en', 'in', 're', 'he', 'ed', 'nd'];
-    if (fastDigraphs.includes((prevChar + currentChar).toLowerCase())) {
-      delay *= 0.7;
-    }
-
-    // 3. After space = slight pause (thinking)
-    if (prevChar === ' ') {
-      delay *= 1.3;
-    }
-
-    // 4. Punctuation followed by longer pause
-    if (['.', ',', '!', '?'].includes(prevChar)) {
-      delay *= 1.5;
-    }
-
-    return Math.round(delay);
+    return calculateKeypressDelay(prevChar, currentChar, baseDelay, this.rng);
   }
 
   /**
@@ -190,6 +180,7 @@ export class NarratedDemo {
   private tempDir: string;
   private soundEnabledPage: SoundEnabledPage | null = null;
   private pendingSoundTimestamps: Array<{ type: SoundType; timeMs: number }> = [];
+  private rng: RandomNumberGenerator;
 
   /**
    * The Playwright Page instance - use this for all browser interactions
@@ -205,11 +196,13 @@ export class NarratedDemo {
     return this.state.page;
   }
 
-  constructor(config: DemoConfig) {
+  constructor(config: DemoConfig, rng: RandomNumberGenerator = new DefaultRNG()) {
     this.config = {
       ...DEFAULT_CONFIG,
       ...config,
     } as Required<DemoConfig>;
+    
+    this.rng = rng;
 
     this.state = {
       started: false,
@@ -274,7 +267,8 @@ export class NarratedDemo {
         this.state.page,
         (type) => this.recordSoundTimestamp(type),
         this.pendingSoundTimestamps,
-        this.state
+        this.state,
+        this.rng
       );
     }
 
