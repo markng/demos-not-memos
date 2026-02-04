@@ -1193,4 +1193,211 @@ describe('ffmpeg-utils', () => {
       expect(mockRmdir).toHaveBeenCalled();
     });
   });
+
+  describe('arithmetic operations and edge cases', () => {
+    it('should use Math.max to ensure adjusted time is not negative', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/audio1.mp3', startTimeMs: 50, durationMs: 100, type: 'click' },
+      ];
+
+      // offsetMs > startTimeMs, so Math.max(0, 50 - 100) should be 0
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 100);
+
+      const command = mockExec.mock.calls[0][0];
+      // Should use adelay=0 (not negative)
+      expect(command).toContain('adelay=0|0');
+    });
+
+    it('should use Math.max with positive result when startTimeMs > offsetMs', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/audio1.mp3', startTimeMs: 200, durationMs: 100, type: 'click' },
+      ];
+
+      // offsetMs < startTimeMs, so Math.max(0, 200 - 50) should be 150
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 50);
+
+      const command = mockExec.mock.calls[0][0];
+      expect(command).toContain('adelay=150|150');
+    });
+
+    it('should use Math.max with exact zero when times equal', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = [
+        { path: '/tmp/audio1.mp3', startTimeMs: 100, durationMs: 100, type: 'click' },
+      ];
+
+      // offsetMs = startTimeMs, so Math.max(0, 100 - 100) should be 0
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 100);
+
+      const command = mockExec.mock.calls[0][0];
+      expect(command).toContain('adelay=0|0');
+    });
+
+    it('should use slice(0, 10) to limit segment logging', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = Array.from({ length: 15 }, (_, i) => ({
+        path: `/tmp/audio${i}.mp3`,
+        startTimeMs: i * 100,
+        durationMs: 100,
+        type: 'click' as const,
+      }));
+
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 0);
+
+      // Should only log details for first 10 segments
+      const logCalls = consoleLogSpy.mock.calls.filter(call => 
+        call[0]?.includes('[FFMPEG] segment startTimeMs=')
+      );
+      expect(logCalls.length).toBeLessThanOrEqual(10);
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should handle segments.length === 10 boundary', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const segments: AudioSegment[] = Array.from({ length: 10 }, (_, i) => ({
+        path: `/tmp/audio${i}.mp3`,
+        startTimeMs: i * 100,
+        durationMs: 100,
+        type: 'click' as const,
+      }));
+
+      await concatAudioWithGaps(segments, '/tmp/output.wav', 0);
+
+      // Should log all 10 segments, no continuation message
+      expect(consoleLogSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('... and')
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should use .trim() before .split() on ffprobe output', async () => {
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        if (command.includes('ffprobe')) {
+          // Include whitespace and newline
+          callback(null, { stdout: '  24/1  \n  ', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm']);
+      
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      // Should not throw despite whitespace
+      const result = await detectSyncFrame('/test/video.mp4');
+      expect(result).toBe(0);
+    });
+
+    it('should use division operator for FPS calculation (not other operators)', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '60/2\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm']);
+      
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      await detectSyncFrame('/test/video.mp4');
+
+      // FPS should be 60/2 = 30, not 60*2 = 120
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('FPS: 30')
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should use || operator (not &&) for denominator fallback', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '30/0\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm']);
+      
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      await detectSyncFrame('/test/video.mp4');
+
+      // FPS should be 30/(0||1) = 30/1 = 30
+      // With && it would be 30/(0&&1) = 30/0 = Infinity
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('FPS: 30')
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should calculate frame duration as 1000/fps', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      const mockExec = exec as unknown as jest.Mock;
+      mockExec.mockImplementation((command, callback) => {
+        if (command.includes('ffprobe')) {
+          callback(null, { stdout: '25/1\n', stderr: '' });
+        } else {
+          callback(null, { stdout: '', stderr: '' });
+        }
+      });
+
+      const mockReaddir = readdir as unknown as jest.Mock;
+      mockReaddir.mockResolvedValue(['frame-001.ppm']);
+      
+      const mockReadFile = readFile as unknown as jest.Mock;
+      mockReadFile.mockResolvedValue(Buffer.from(''));
+
+      await detectSyncFrame('/test/video.mp4');
+
+      // frameDurationMs = 1000/25 = 40ms
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('frame duration: 40.00ms')
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+  });
 });

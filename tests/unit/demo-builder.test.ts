@@ -907,6 +907,142 @@ describe('NarratedDemo', () => {
 
       consoleLogSpy.mockRestore();
     });
+
+    it('should calculate syncFrameOffsetMs correctly (multiplication)', async () => {
+      (ffmpegUtils.detectSyncFrameRange as jest.Mock).mockResolvedValue({
+        firstSyncFrame: 10,
+        lastSyncFrame: 15,
+        frameDurationMs: 25,
+      });
+
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.finish();
+
+      // syncFrameOffsetMs = firstSyncFrame * frameDurationMs = 10 * 25 = 250
+      expect(ffmpegUtils.trimSyncFrames).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        16, // lastSyncFrame + 1
+        25
+      );
+    });
+
+    it('should calculate syncDurationFrames correctly (subtraction + addition)', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      (ffmpegUtils.detectSyncFrameRange as jest.Mock).mockResolvedValue({
+        firstSyncFrame: 5,
+        lastSyncFrame: 10,
+        frameDurationMs: 30,
+      });
+
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.finish();
+
+      // syncDurationFrames = lastSyncFrame - firstSyncFrame + 1 = 10 - 5 + 1 = 6
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('(6 frames)')
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should calculate framesToTrim correctly (addition)', async () => {
+      (ffmpegUtils.detectSyncFrameRange as jest.Mock).mockResolvedValue({
+        firstSyncFrame: 3,
+        lastSyncFrame: 7,
+        frameDurationMs: 20,
+      });
+
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.finish();
+
+      // framesToTrim = lastSyncFrame + 1 = 7 + 1 = 8
+      expect(ffmpegUtils.trimSyncFrames).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        8,
+        20
+      );
+    });
+
+    it('should calculate trimDurationMs correctly (multiplication)', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      (ffmpegUtils.detectSyncFrameRange as jest.Mock).mockResolvedValue({
+        firstSyncFrame: 2,
+        lastSyncFrame: 5,
+        frameDurationMs: 40,
+      });
+
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.finish();
+
+      // framesToTrim = 5 + 1 = 6
+      // trimDurationMs = framesToTrim * frameDurationMs = 6 * 40 = 240
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('(240.00ms)')
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should calculate audioOffset correctly (subtraction)', async () => {
+      (ffmpegUtils.detectSyncFrameRange as jest.Mock).mockResolvedValue({
+        firstSyncFrame: 4,
+        lastSyncFrame: 9,
+        frameDurationMs: 30,
+      });
+
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.narrate('Test');
+      await demo.finish();
+
+      // syncFrameOffsetMs = 4 * 30 = 120
+      // framesToTrim = 9 + 1 = 10
+      // trimDurationMs = 10 * 30 = 300
+      // audioOffset = trimDurationMs - syncFrameOffsetMs = 300 - 120 = 180
+      expect(ffmpegUtils.concatAudioWithGaps).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.any(String),
+        180
+      );
+    });
+
+    it('should handle firstSyncFrame >= 0 condition (boundary)', async () => {
+      (ffmpegUtils.detectSyncFrameRange as jest.Mock).mockResolvedValue({
+        firstSyncFrame: 0,
+        lastSyncFrame: 2,
+        frameDurationMs: 33.33,
+      });
+
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.finish();
+
+      // firstSyncFrame >= 0, so should trim
+      expect(ffmpegUtils.trimSyncFrames).toHaveBeenCalled();
+    });
+
+    it('should handle firstSyncFrame < 0 condition (no trim)', async () => {
+      (ffmpegUtils.detectSyncFrameRange as jest.Mock).mockResolvedValue({
+        firstSyncFrame: -1,
+        lastSyncFrame: -1,
+        frameDurationMs: 33.33,
+      });
+
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.finish();
+
+      // firstSyncFrame < 0, so should not trim
+      expect(ffmpegUtils.trimSyncFrames).not.toHaveBeenCalled();
+    });
   });
 
   describe('getElapsedTime()', () => {
