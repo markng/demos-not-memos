@@ -796,6 +796,117 @@ describe('NarratedDemo', () => {
         320 // trimDurationMs (480) - syncFrameOffsetMs (160)
       );
     });
+
+    it('should log sync detection message when videoPath is not null', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+
+      await demo.finish();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[SYNC] Detecting sync marker in video...')
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should log when sync marker is found', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      // Mock detectSyncFrameRange to return found frames
+      (ffmpegUtils.detectSyncFrameRange as jest.Mock).mockResolvedValue({
+        firstSyncFrame: 5,
+        lastSyncFrame: 8,
+        frameDurationMs: 33.33,
+      });
+
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.finish();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/\[SYNC\] Sync marker found: frames 5-8/)
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should log when no sync marker detected', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      // Mock detectSyncFrameRange to return no frames found
+      (ffmpegUtils.detectSyncFrameRange as jest.Mock).mockResolvedValue({
+        firstSyncFrame: -1,
+        lastSyncFrame: -1,
+        frameDurationMs: 33.33,
+      });
+
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.finish();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[SYNC] No sync marker detected in video - using original')
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should log sync frame offset when marker found', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      (ffmpegUtils.detectSyncFrameRange as jest.Mock).mockResolvedValue({
+        firstSyncFrame: 4,
+        lastSyncFrame: 6,
+        frameDurationMs: 40,
+      });
+
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.finish();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/\[SYNC\] Sync frame offset: 160\.00ms/)
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should log trimmed frames information', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      (ffmpegUtils.detectSyncFrameRange as jest.Mock).mockResolvedValue({
+        firstSyncFrame: 3,
+        lastSyncFrame: 5,
+        frameDurationMs: 50,
+      });
+
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.finish();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/\[SYNC\] Trimmed 6 frames \(300\.00ms\) from video/)
+      );
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should log final audio segments when present', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+      await demo.narrate('Test');
+      await demo.finish();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/\[TIMING\] Final audio segments \(\d+ total\):/)
+      );
+
+      consoleLogSpy.mockRestore();
+    });
   });
 
   describe('getElapsedTime()', () => {
