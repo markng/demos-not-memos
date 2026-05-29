@@ -205,8 +205,16 @@ export class NarratedDemo {
   }
 
   constructor(config: DemoConfig) {
+    // The CLI surfaces --ignore-https-errors via this env var. An explicit
+    // config value always wins; the env var only overrides the `false`
+    // default when the script didn't set the field itself.
+    const envIgnoreHTTPS =
+      process.env.DEMOS_IGNORE_HTTPS_ERRORS === '1' ||
+      process.env.DEMOS_IGNORE_HTTPS_ERRORS === 'true';
+
     this.config = {
       ...DEFAULT_CONFIG,
+      ignoreHTTPSErrors: envIgnoreHTTPS,
       ...config,
     } as Required<DemoConfig>;
 
@@ -259,6 +267,7 @@ export class NarratedDemo {
     this.state.browser = await chromium.launch({ headless: false });
     this.state.context = await this.state.browser.newContext({
       viewport: this.config.viewport,
+      ignoreHTTPSErrors: this.config.ignoreHTTPSErrors,
       recordVideo: {
         dir: videoDir,
         size: this.config.viewport,
