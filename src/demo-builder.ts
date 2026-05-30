@@ -107,6 +107,7 @@ export class SoundEnabledPage {
 
     for (let i = 0; i < text.length; i++) {
       const currentChar = text[i];
+      // Stryker disable next-line ConditionalExpression,EqualityOperator,StringLiteral: equivalent mutants — at i === 0 the previous char is a sentinel that only feeds getKeypressDelay's digraph/space/punctuation checks; '', undefined, or any other string all fail every one of those checks identically, so no observable behavior changes.
       const prevChar = i > 0 ? text[i - 1] : '';
 
       // Record timestamp BEFORE typing - sound should start as keystroke begins
@@ -198,7 +199,8 @@ export class NarratedDemo {
     if (!this.state.page) {
       throw new Error('Demo not started. Call start() first.');
     }
-    if (this.config.sounds && this.soundEnabledPage) {
+    // soundEnabledPage is only assigned when sounds are enabled
+    if (this.soundEnabledPage) {
       return this.soundEnabledPage;
     }
     return this.state.page;
@@ -417,10 +419,6 @@ export class NarratedDemo {
    * Process pending sound timestamps and add them as audio segments
    */
   private async processSoundTimestamps(): Promise<void> {
-    if (this.pendingSoundTimestamps.length === 0) {
-      return;
-    }
-
     // Generate sounds lazily (only generate each type once)
     const soundTypes = new Set(this.pendingSoundTimestamps.map((s) => s.type));
     const soundResults = new Map<SoundType, { path: string; durationMs: number }>();
@@ -452,9 +450,8 @@ export class NarratedDemo {
     }
 
     // Process any pending sound timestamps
-    if (this.config.sounds) {
-      await this.processSoundTimestamps();
-    }
+    // no-op when no sound timestamps were recorded
+    await this.processSoundTimestamps();
 
     // Close the page to finalize video recording
     if (this.state.page) {
