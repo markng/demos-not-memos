@@ -99,7 +99,8 @@ export async function detectSyncFrame(videoPath: string): Promise<number> {
     // Get video frame rate for timestamp calculation
     const probeCmd = `ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "${videoPath}"`;
     const { stdout: fpsOutput } = await execAsync(probeCmd);
-    const [num, den] = fpsOutput.trim().split('/').map(Number);
+    // Number() coerces surrounding whitespace, so .trim() is redundant
+    const [num, den] = fpsOutput.split('/').map(Number);
     const fps = num / (den || 1);
     const frameDurationMs = 1000 / fps;
 
@@ -156,6 +157,7 @@ async function isFrameMagenta(framePath: string): Promise<boolean> {
   let headerEnd = 0;
   let newlineCount = 0;
 
+  // Stryker disable next-line EqualityOperator,ConditionalExpression: equivalent mutants — the explicit `break` at newlineCount === 3 always exits the loop first, and the `< data.length` bound only matters for malformed (<3-newline) input where an off-by-one extra iteration reads `undefined` (never a newline), so the parsed header position is identical.
   for (let i = 0; i < data.length && newlineCount < 3; i++) {
     if (data[i] === 0x0a) { // newline
       newlineCount++;
@@ -174,6 +176,7 @@ async function isFrameMagenta(framePath: string): Promise<boolean> {
   let magentaCount = 0;
   const tolerance = 30; // Allow +/- 30 in RGB values
 
+  // Stryker disable next-line EqualityOperator: equivalent mutant — `<=` adds one out-of-bounds iteration reading `undefined` RGB values; `Math.abs(undefined - x) < tolerance` is `NaN < tolerance` (false), so magentaCount and totalPixels are unchanged.
   for (let i = 0; i < pixelData.length; i += 3) {
     const r = pixelData[i];
     const g = pixelData[i + 1];
@@ -210,7 +213,8 @@ export async function detectSyncFrameRange(videoPath: string): Promise<{
     // Get video frame rate
     const probeCmd = `ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "${videoPath}"`;
     const { stdout: fpsOutput } = await execAsync(probeCmd);
-    const [num, den] = fpsOutput.trim().split('/').map(Number);
+    // Number() coerces surrounding whitespace, so .trim() is redundant
+    const [num, den] = fpsOutput.split('/').map(Number);
     const fps = num / (den || 1);
     const frameDurationMs = 1000 / fps;
 

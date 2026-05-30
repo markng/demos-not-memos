@@ -461,6 +461,216 @@ describe('sounds', () => {
       );
     });
 
+    it('should call ffmpeg with the exact fade-out start derived from the target duration', async () => {
+      // Kills L165:26 ArithmeticOperator: fadeOutStart = TARGET (0.1) * 0.7 = 0.07.
+      // The `/ 0.7` mutant would produce ~0.142857, so we pin the literal `st=0.07`.
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      await generateSound('click');
+
+      // The afade filter must use the multiplied (not divided) start time.
+      // 0.1 * 0.7 === 0.06999999999999999; the `/ 0.7` mutant gives ~0.1428.
+      expect(execSync).toHaveBeenCalledWith(
+        expect.stringContaining('afade=t=out:st=0.06999999999999999:'),
+        expect.any(Object)
+      );
+    });
+
+    it('should call ffmpeg with the exact fade-out duration derived from the target duration', async () => {
+      // Kills L166:29 ArithmeticOperator: fadeOutDuration = TARGET (0.1) * 0.3 = 0.03.
+      // The `/ 0.3` mutant would produce ~0.333, so we pin the literal `d=...0.03`.
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      await generateSound('click');
+
+      // The afade filter must use the multiplied (not divided) duration.
+      // 0.1 * 0.3 === 0.03; the `/ 0.3` mutant gives ~0.3333.
+      expect(execSync).toHaveBeenCalledWith(
+        expect.stringContaining('d=0.03"'),
+        expect.any(Object)
+      );
+    });
+
+    it('should call ffmpeg with stdio set to pipe', async () => {
+      // Kills L169:7 ObjectLiteral: the execSync options must be { stdio: 'pipe' }.
+      // The `{}` mutant would drop the stdio option entirely.
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      await generateSound('click');
+
+      expect(execSync).toHaveBeenCalledWith(
+        expect.any(String),
+        { stdio: 'pipe' }
+      );
+    });
+
+    it('should not delete temp file when it does not exist after trimming', async () => {
+      // Kills L173:9 ConditionalExpression (-> true): cleanup of the temp file
+      // is guarded by existsSync(tempPath). When the temp file does not exist,
+      // unlinkSync must not be called for it. Forcing the condition to `true`
+      // would call unlinkSync on the (missing) temp path.
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      // Nothing exists on disk: no dir, no temp file, no output file.
+      // statSync still reports a valid (2000-byte) file so generation succeeds.
+      (existsSync as jest.Mock).mockReturnValue(false);
+
+      await generateSound('click');
+
+      // Success path with no existing files: nothing should be unlinked.
+      expect(unlinkSync).not.toHaveBeenCalled();
+    });
+
+    it('should delete the invalid output file before retrying when it exists', async () => {
+      // Kills L183:9 ConditionalExpression (-> false) and L183:33 BlockStatement (-> {}):
+      // after an invalid generation, if the output file exists it must be deleted
+      // before the next retry. The `false` / empty-block mutants skip the deletion.
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      // statSync calls: attempt 1 post-trim validation (invalid), attempt 2 (valid).
+      // The initial on-disk cache check is skipped because existsSync(outputPath)
+      // is false on the first probe (see counter below).
+      (statSync as jest.Mock)
+        .mockReturnValueOnce({ size: 250 }) // attempt 1: invalid -> triggers delete
+        .mockReturnValueOnce({ size: 2000 }); // attempt 2: valid
+
+      // Output file: absent for the initial disk-cache probe (so we generate),
+      // present for the invalid-file delete guard (so the delete branch runs).
+      // Temp file never exists, so temp cleanup cannot produce a spurious
+      // unlinkSync(outputPath).
+      let mp3Probes = 0;
+      (existsSync as jest.Mock).mockImplementation((path: string) => {
+        if (path === '/tmp/sounds/click.mp3') {
+          mp3Probes++;
+          return mp3Probes > 1; // false on first (disk-cache), true thereafter
+        }
+        return false;
+      });
+
+      await generateSound('click');
+
+      // The invalid output file must have been deleted before retrying.
+      expect(unlinkSync).toHaveBeenCalledWith('/tmp/sounds/click.mp3');
+    });
+
+    it('should not delete the output file on retry when it does not exist', async () => {
+      // Kills L183:9 ConditionalExpression (-> true): the invalid-file delete is
+      // guarded by existsSync(outputPath). When the output file does not exist,
+      // unlinkSync must not be called for it. Forcing the condition to `true`
+      // would unlink the (missing) output path.
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      // First attempt invalid, second attempt valid.
+      (statSync as jest.Mock)
+        .mockReturnValueOnce({ size: 250 }) // attempt 1: invalid
+        .mockReturnValueOnce({ size: 2000 }); // attempt 2: valid
+
+      // Neither temp nor output file ever exists on disk.
+      (existsSync as jest.Mock).mockReturnValue(false);
+
+      await generateSound('click');
+
+      // No file existed, so nothing should be unlinked across the retry.
+      expect(unlinkSync).not.toHaveBeenCalled();
+    });
+
+    it('should treat a file exactly at the minimum valid size as valid', async () => {
+      // Kills L115:12 EqualityOperator (>= -> >): MIN_VALID_FILE_SIZE is 1000.
+      // A 1000-byte cached file on disk must be considered valid (>=), so the
+      // API is NOT called. The `>` mutant would treat 1000 as invalid and regenerate.
+      initSoundsDir('/tmp/sounds');
+      (existsSync as jest.Mock).mockImplementation((path: string) => {
+        if (path === '/tmp/sounds') return true;
+        if (path === '/tmp/sounds/click.mp3') return true;
+        return false;
+      });
+      // Exactly at the boundary.
+      (statSync as jest.Mock).mockReturnValue({ size: 1000 });
+      (getAudioDuration as jest.Mock).mockResolvedValue(123);
+
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      const result = await generateSound('click');
+
+      // Boundary file is valid -> loaded from disk, no API call.
+      expect(mockConvert).not.toHaveBeenCalled();
+      expect(result.durationMs).toBe(123);
+    });
+
+    it('should throw the exact failure message after max retries', async () => {
+      // Kills L190:9 StringLiteral (-> ``): the thrown Error message must contain
+      // the full descriptive text. The empty-template mutant would throw an empty message.
+      initSoundsDir('/tmp/sounds');
+      const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
+      const mockClient = {
+        textToSoundEffects: {
+          convert: mockConvert,
+        },
+      };
+      (ElevenLabsClient as jest.Mock).mockImplementation(() => mockClient);
+
+      // Every attempt produces an invalid (too-small) file.
+      (statSync as jest.Mock).mockReturnValue({ size: 250 });
+      (existsSync as jest.Mock).mockImplementation((path: string) => {
+        if (path.endsWith('.temp.mp3')) return true;
+        if (path.endsWith('.mp3')) return true;
+        return false;
+      });
+
+      await expect(generateSound('click')).rejects.toThrow(
+        'Failed to generate valid sound for "click" after 3 attempts. ' +
+          'ElevenLabs may be generating silent audio for this prompt.'
+      );
+    });
+
     it('should clean up temp file after trimming', async () => {
       initSoundsDir('/tmp/sounds');
       const mockConvert = jest.fn().mockResolvedValue(mockAudioStream);
@@ -580,6 +790,42 @@ describe('sounds', () => {
       expect(letter2).not.toBe(letter1);
       // space1 is independent - no assertion needed about its relationship
       expect(space1).toMatch(/^keypress-space-[1-5]$/);
+    });
+
+    it('should compute the variant index as floor(random*5)+1', () => {
+      // Kills L72:15 ArithmeticOperator (+ 1 -> - 1): with Math.random mocked to 0,
+      // the original computes floor(0*5)+1 = 1 -> 'keypress-letter-1'. The `- 1`
+      // mutant would compute floor(0*5)-1 = -1 -> 'keypress-letter--1'.
+      // isolateModules gives a fresh module so lastVariantUsed starts empty (default 0),
+      // guaranteeing the do/while loop terminates deterministically for index 1.
+      const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0);
+
+      let result: string | undefined;
+      jest.isolateModules(() => {
+        const fresh = require('../../src/sounds');
+        result = fresh.getVariantSoundType('keypress-letter');
+      });
+
+      expect(result).toBe('keypress-letter-1');
+
+      randomSpy.mockRestore();
+    });
+
+    it('should compute the highest variant index from a near-1 random value', () => {
+      // Reinforces L72:15: Math.random ~0.99 -> floor(0.99*5)+1 = 5 (original),
+      // while the `- 1` mutant would yield floor(0.99*5)-1 = 3.
+      // Fresh module => lastVariantUsed default 0, so index 5 is accepted immediately.
+      const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.99);
+
+      let result: string | undefined;
+      jest.isolateModules(() => {
+        const fresh = require('../../src/sounds');
+        result = fresh.getVariantSoundType('keypress-space');
+      });
+
+      expect(result).toBe('keypress-space-5');
+
+      randomSpy.mockRestore();
     });
 
     it('should return all variants over many calls (statistical)', () => {
