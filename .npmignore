@@ -26,3 +26,4 @@ stryker.config.mjs
 *.log
 .DS_Store
 .stryker-tmp/
+.claude/
