@@ -237,6 +237,7 @@ describe('NarratedDemo', () => {
       const mockBrowser = await chromium.launch();
       expect(mockBrowser.newContext).toHaveBeenCalledWith({
         viewport: DEFAULT_CONFIG.viewport,
+        ignoreHTTPSErrors: false,
         recordVideo: {
           dir: expect.stringContaining('video'),
           size: DEFAULT_CONFIG.viewport,
@@ -255,11 +256,118 @@ describe('NarratedDemo', () => {
       const mockBrowser = await chromium.launch();
       expect(mockBrowser.newContext).toHaveBeenCalledWith({
         viewport: customViewport,
+        ignoreHTTPSErrors: false,
         recordVideo: {
           dir: expect.any(String),
           size: customViewport,
         },
       });
+    });
+
+    it('should pass ignoreHTTPSErrors to the browser context when enabled in config', async () => {
+      const demo = new NarratedDemo({
+        ...defaultConfig,
+        ignoreHTTPSErrors: true,
+      });
+      await demo.start();
+
+      const mockBrowser = await chromium.launch();
+      expect(mockBrowser.newContext).toHaveBeenCalledWith(
+        expect.objectContaining({ ignoreHTTPSErrors: true })
+      );
+    });
+
+    it('should default ignoreHTTPSErrors to false when unset', async () => {
+      const demo = new NarratedDemo(defaultConfig);
+      await demo.start();
+
+      const mockBrowser = await chromium.launch();
+      expect(mockBrowser.newContext).toHaveBeenCalledWith(
+        expect.objectContaining({ ignoreHTTPSErrors: false })
+      );
+    });
+
+    it('should enable ignoreHTTPSErrors from DEMOS_IGNORE_HTTPS_ERRORS=1', async () => {
+      const previous = process.env.DEMOS_IGNORE_HTTPS_ERRORS;
+      process.env.DEMOS_IGNORE_HTTPS_ERRORS = '1';
+      try {
+        const demo = new NarratedDemo(defaultConfig);
+        await demo.start();
+
+        const mockBrowser = await chromium.launch();
+        expect(mockBrowser.newContext).toHaveBeenCalledWith(
+          expect.objectContaining({ ignoreHTTPSErrors: true })
+        );
+      } finally {
+        if (previous === undefined) {
+          delete process.env.DEMOS_IGNORE_HTTPS_ERRORS;
+        } else {
+          process.env.DEMOS_IGNORE_HTTPS_ERRORS = previous;
+        }
+      }
+    });
+
+    it('should enable ignoreHTTPSErrors from DEMOS_IGNORE_HTTPS_ERRORS=true', async () => {
+      const previous = process.env.DEMOS_IGNORE_HTTPS_ERRORS;
+      process.env.DEMOS_IGNORE_HTTPS_ERRORS = 'true';
+      try {
+        const demo = new NarratedDemo(defaultConfig);
+        await demo.start();
+
+        const mockBrowser = await chromium.launch();
+        expect(mockBrowser.newContext).toHaveBeenCalledWith(
+          expect.objectContaining({ ignoreHTTPSErrors: true })
+        );
+      } finally {
+        if (previous === undefined) {
+          delete process.env.DEMOS_IGNORE_HTTPS_ERRORS;
+        } else {
+          process.env.DEMOS_IGNORE_HTTPS_ERRORS = previous;
+        }
+      }
+    });
+
+    it('should let an explicit config value override the env var', async () => {
+      const previous = process.env.DEMOS_IGNORE_HTTPS_ERRORS;
+      process.env.DEMOS_IGNORE_HTTPS_ERRORS = '1';
+      try {
+        const demo = new NarratedDemo({
+          ...defaultConfig,
+          ignoreHTTPSErrors: false,
+        });
+        await demo.start();
+
+        const mockBrowser = await chromium.launch();
+        expect(mockBrowser.newContext).toHaveBeenCalledWith(
+          expect.objectContaining({ ignoreHTTPSErrors: false })
+        );
+      } finally {
+        if (previous === undefined) {
+          delete process.env.DEMOS_IGNORE_HTTPS_ERRORS;
+        } else {
+          process.env.DEMOS_IGNORE_HTTPS_ERRORS = previous;
+        }
+      }
+    });
+
+    it('should ignore unrecognised DEMOS_IGNORE_HTTPS_ERRORS values', async () => {
+      const previous = process.env.DEMOS_IGNORE_HTTPS_ERRORS;
+      process.env.DEMOS_IGNORE_HTTPS_ERRORS = 'yes';
+      try {
+        const demo = new NarratedDemo(defaultConfig);
+        await demo.start();
+
+        const mockBrowser = await chromium.launch();
+        expect(mockBrowser.newContext).toHaveBeenCalledWith(
+          expect.objectContaining({ ignoreHTTPSErrors: false })
+        );
+      } finally {
+        if (previous === undefined) {
+          delete process.env.DEMOS_IGNORE_HTTPS_ERRORS;
+        } else {
+          process.env.DEMOS_IGNORE_HTTPS_ERRORS = previous;
+        }
+      }
     });
 
     it('should navigate to base URL', async () => {

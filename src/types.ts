@@ -16,6 +16,14 @@ export interface DemoConfig {
   output: string;
   /** Enable UI sounds (clicks, keystrokes) */
   sounds?: boolean;
+  /**
+   * Skip HTTPS/TLS certificate validation for the demo session.
+   * Useful when recording against local dev servers or staging
+   * environments that use self-signed or otherwise invalid certs.
+   * Can also be enabled from the CLI via --ignore-https-errors,
+   * which sets the DEMOS_IGNORE_HTTPS_ERRORS environment variable.
+   */
+  ignoreHTTPSErrors?: boolean;
 }
 
 /**
@@ -102,4 +110,5 @@ export const DEFAULT_CONFIG = {
   voice: 'Elli',
   model: 'eleven_v3',
   sounds: false,
+  ignoreHTTPSErrors: false,
 } as const;
