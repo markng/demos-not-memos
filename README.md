@@ -504,3 +504,55 @@ The DSL uses real-time timing - narration duration matches actual speech. If syn
 ## License
 
 MIT
+
+## Pluggable narration providers
+
+Existing scripts keep their ElevenLabs voice/model behavior. To use another provider,
+pass a TTSProvider object through ttsProvider. No provider-name switch or registry is
+required: any implementation of { audioExtension, generate(request) } works.
+
+```typescript
+import { NarratedDemo, KokoroProvider } from 'demos-not-memos';
+const demo = new NarratedDemo({
+  baseUrl: 'http://localhost:8000',
+  output: './output/intake.mp4',
+  sounds: false,
+  ttsProvider: new KokoroProvider({
+    modelPath: '/absolute/path/to/Kokoro-82M-v1.0-ONNX',
+    voice: 'af_heart',
+    speed: 1,
+  }),
+});
+```
+
+Kokoro uses local q8 CPU inference and bundled voices. Install optional dependencies
+unless you only need ElevenLabs (`npm install --omit=optional` omits local speech).
+Model acquisition is a separate, explicit setup step: this library never downloads
+the model or falls back to a cloud provider. Prepare config.json, tokenizer.json,
+tokenizer_config.json and onnx/model_quantized.onnx from a reviewed pinned revision
+of onnx-community/Kokoro-82M-v1.0-ONNX. Verify the model's provenance and license.
+Kokoro JS/model are Apache-2.0; retain their notices when redistributing assets.
+
+Model loading is lazy and cached per provider. A failed load can be retried explicitly.
+Long narration is split into bounded text segments and concatenated, preserving words
+instead of silently truncating at the model limit. Audio is emitted as PCM WAV with
+duration computed from samples. Missing files, invalid voices, or synthesis errors
+fail clearly. This provider does not use the top-level ElevenLabs voice/model fields.
+
+Kokoro narration is local; Playwright still accesses the configured application.
+Optional UI sound generation remains the existing ElevenLabs feature. Keep
+`sounds: false` for a demo with no ElevenLabs calls. No browser, model, or API key
+is installed/configured by the provider. Linux needs the normal Playwright display
+setup for this package's headed browser; CPU narration is independent of that.
+
+Explicit ElevenLabs selection:
+`new ElevenLabsProvider({voice: 'Elli', model: 'eleven_v3'})`.
+
+Custom providers implement the exported TTSProvider interface. generate receives
+only text and outputPath and returns audioPath plus durationMs. Provider-specific
+credentials/configuration stay inside that implementation. Unit tests include a
+third synthetic provider to ensure extensibility.
+
+Kokoro JS 1.2.1 local voice loading requires Node 20.11+ (verified here on Node 24). The existing ElevenLabs path retains the package baseline.
+
+After building, run `node scripts/smoke-kokoro.mjs /absolute/reviewed/model/directory` for an opt-in real-model check. It rejects fetch calls and writes synthetic audio to a new temporary directory. For an OS-enforced offline test on macOS, run it under `sandbox-exec -p '(version 1)(allow default)(deny network*)'`. Use a script file rather than a Node `-e` one-liner; the native runtime was verified with both ESM and CommonJS script files.

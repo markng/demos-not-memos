@@ -1,0 +1,15 @@
+import {KokoroProvider} from '../dist/index.js';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+if (!process.argv[2]) throw new Error('Pass a reviewed, existing absolute model directory; nothing is downloaded.');
+let fetches=0;
+globalThis.fetch=()=>{fetches++;throw new Error('Network access is disabled for this smoke test');};
+const directory=await fs.mkdtemp(path.join(os.tmpdir(),'demos-kokoro-'));
+const provider=new KokoroProvider({modelPath:process.argv[2]});
+const result=await provider.generate({text:'Welcome to the registration demo.',outputPath:path.join(directory,'smoke.wav')});
+const wav=await fs.readFile(result.audioPath);
+let peak=0;
+for(let i=44;i<wav.length;i+=2) peak=Math.max(peak,Math.abs(wav.readInt16LE(i)));
+if(fetches || !peak || result.durationMs<1000 || wav.toString('ascii',0,4)!=='RIFF') throw new Error('Invalid smoke audio');
+console.log(JSON.stringify({...result,bytes:wav.length,sampleRate:wav.readUInt32LE(24),peak,fetches}));

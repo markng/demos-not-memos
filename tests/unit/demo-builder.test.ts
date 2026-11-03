@@ -1996,3 +1996,13 @@ describe('NarratedDemo', () => {
     });
   });
 });
+
+describe('custom narration provider wiring',()=>{
+  it('passes the same custom provider through both narration methods',async()=>{
+    jest.clearAllMocks();
+    const provider={audioExtension:'wav',generate:jest.fn()};
+    const demo=new NarratedDemo({baseUrl:'http://localhost',output:'/tmp/demo.mp4',ttsProvider:provider});
+    await demo.start();await demo.narrate('first');await demo.narrateAsync('second');
+    expect((Narration as jest.Mock).mock.calls.map(call=>call[6])).toEqual([provider,provider]);
+  });
+});

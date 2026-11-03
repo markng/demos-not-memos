@@ -352,7 +352,8 @@ export class NarratedDemo {
       this.config.model,
       startTimeMs,
       this.tempDir,
-      segmentId
+      segmentId,
+      ...(this.config.ttsProvider ? [this.config.ttsProvider] : [])
     );
 
     await narration.generate();
@@ -389,7 +390,8 @@ export class NarratedDemo {
       this.config.model,
       startTimeMs,
       this.tempDir,
-      segmentId
+      segmentId,
+      ...(this.config.ttsProvider ? [this.config.ttsProvider] : [])
     );
 
     await narration.generate();

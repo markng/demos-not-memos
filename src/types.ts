@@ -1,9 +1,12 @@
+import type { TTSProvider } from './tts-provider';
 import { Page, Browser, BrowserContext } from 'playwright';
 
 /**
  * Configuration for creating a NarratedDemo
  */
 export interface DemoConfig {
+  /** Optional provider; omitted preserves legacy ElevenLabs configuration. */
+  ttsProvider?: TTSProvider;
   /** Base URL for the demo (e.g., 'http://localhost:8000') */
   baseUrl: string;
   /** Viewport dimensions for the browser */

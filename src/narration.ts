@@ -1,4 +1,5 @@
-import { generateTTS } from './audio-utils';
+import { ElevenLabsProvider } from './elevenlabs-provider';
+import { TTSProvider } from './tts-provider';
 import { TTSResult, AudioSegment } from './types';
 
 /**
@@ -21,7 +22,8 @@ export class Narration {
     model: string,
     startTimeMs: number,
     outputDir: string,
-    segmentId: string
+    segmentId: string,
+    private readonly provider?: TTSProvider
   ) {
     this.text = text;
     this.voice = voice;
@@ -36,12 +38,12 @@ export class Narration {
    * Called internally by NarratedDemo
    */
   async generate(): Promise<void> {
-    const audioPath = `${this.outputDir}/${this.segmentId}.mp3`;
+    const provider = this.provider ?? new ElevenLabsProvider({voice: this.voice, model: this.model});
+    if (!/^[a-z0-9]+$/i.test(provider.audioExtension)) throw new Error('Invalid provider audio extension');
+    const audioPath = `${this.outputDir}/${this.segmentId}.${provider.audioExtension}`;
 
-    this.ttsResult = await generateTTS({
+    this.ttsResult = await provider.generate({
       text: this.text,
-      voice: this.voice,
-      model: this.model,
       outputPath: audioPath,
     });
 

@@ -30,3 +30,8 @@ export type {
 export { DEFAULT_CONFIG } from './types';
 export type { SoundType, SoundResult } from './sounds';
 export { generateSound, initSoundsDir, clearSoundCache } from './sounds';
+
+export type { TTSProvider, SpeechRequest, SpeechResult } from './tts-provider';
+export { ElevenLabsProvider } from './elevenlabs-provider';
+export { KokoroProvider } from './kokoro-provider';
+export type { KokoroOptions } from './kokoro-provider';
