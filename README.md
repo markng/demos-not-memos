@@ -556,3 +556,5 @@ third synthetic provider to ensure extensibility.
 Kokoro JS 1.2.1 local voice loading requires Node 20.11+ (verified here on Node 24). The existing ElevenLabs path retains the package baseline.
 
 After building, run `node scripts/smoke-kokoro.mjs /absolute/reviewed/model/directory` for an opt-in real-model check. It rejects fetch calls and writes synthetic audio to a new temporary directory. For an OS-enforced offline test on macOS, run it under `sandbox-exec -p '(version 1)(allow default)(deny network*)'`. Use a script file rather than a Node `-e` one-liner; the native runtime was verified with both ESM and CommonJS script files.
+
+Kokoro narration is segmented only at complete English sentence boundaries. Keep individual sentences at most 250 characters; longer sentences fail with an instruction to shorten them instead of silently resetting prosody mid-sentence.

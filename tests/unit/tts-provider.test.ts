@@ -54,7 +54,7 @@ describe('KokoroProvider', () => {
     expect(engine.generate).toHaveBeenCalledWith('Hello',{voice:'am_adam',speed:1.2});
   });
   it('splits and preserves long narration rather than truncating it', async () => {
-    const text=Array(100).fill('narration').join(' ');
+    const text=Array(20).fill('This is a complete narration sentence.').join(' ');
     const chunks=splitKokoroText(text);
     expect(chunks.join(' ')).toBe(text);
     expect(chunks.every(chunk=>chunk.length<=250)).toBe(true);
@@ -62,8 +62,24 @@ describe('KokoroProvider', () => {
     const output=await new KokoroProvider({modelPath:'/model'},async()=>engine).generate({...request,text});
     expect(engine.generate).toHaveBeenCalledTimes(chunks.length);
     expect(output.durationMs).toBe(chunks.length*1000);
-    expect(splitKokoroText('x'.repeat(501)).map(c=>c.length)).toEqual([250,250,1]);
+    expect(chunks.every(chunk=>chunk.endsWith('.'))).toBe(true);
     const exact='a '.repeat(124)+'ab';expect(exact.length).toBe(250);expect(splitKokoroText(exact)).toEqual([exact]);
+  });
+  it('keeps the actual demo sentence intact across the former 250-character split', () => {
+    const text = 'The host starts from the latest published form and creates a new draft. Here, job title becomes required, and a business website question is added. This gives each partner room to ask for the information it actually needs, while keeping previously published versions unchanged.';
+    expect(splitKokoroText(text)).toEqual([
+      'The host starts from the latest published form and creates a new draft. Here, job title becomes required, and a business website question is added.',
+      'This gives each partner room to ask for the information it actually needs, while keeping previously published versions unchanged.',
+    ]);
+  });
+  it('preserves decimal numbers and quoted punctuation', () => {
+    expect(splitKokoroText('   Hello.   ')).toEqual(['Hello.']);
+    expect(splitKokoroText('The price is 3.50 dollars. "Ready?" Yes!')).toEqual(['The price is 3.50 dollars. "Ready?" Yes!']);
+  });
+  it('rejects overlong sentences before loading rather than resetting mid-sentence', async () => {
+    const loader=jest.fn();
+    await expect(new KokoroProvider({modelPath:'/model'},loader).generate({...request,text:'x'.repeat(251)})).rejects.toThrow('shorten it');
+    expect(loader).not.toHaveBeenCalled();
   });
   it('rejects empty text without loading model', async () => {
     const loader=jest.fn();
@@ -91,7 +107,7 @@ describe('KokoroProvider', () => {
   });
   it('rejects inconsistent sample rates', async () => {
     const generate=jest.fn().mockResolvedValueOnce(result).mockResolvedValue({...result,sampling_rate:22050});
-    await expect(new KokoroProvider({modelPath:'/model'},async()=>({generate})).generate({...request,text:'x'.repeat(300)})).rejects.toThrow('sample rate');
+    await expect(new KokoroProvider({modelPath:'/model'},async()=>({generate})).generate({...request,text:('A'+'x'.repeat(147)+'. ').repeat(2)})).rejects.toThrow('sample rate');
   });
   it('rejects empty and nonfinite audio', async () => {
     for(const [audio,message] of [[new Float32Array(),'Kokoro returned empty audio'],[Float32Array.from([NaN]),'Kokoro returned non-finite audio']] as const){

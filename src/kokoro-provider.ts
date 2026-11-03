@@ -25,17 +25,27 @@ async function loadKokoro(modelPath: string): Promise<KokoroEngine> {
   })};
 }
 
-/** Bound segments to avoid Kokoro's silent token truncation on long narration. */
+/** Keep sentence prosody intact while bounding input to the local model.
+ * Overlong sentences must be rewritten, never silently cut in the middle.
+ */
 export function splitKokoroText(text: string): string[] {
-  let remaining = text.trim();
   const chunks: string[] = [];
-  while (remaining.length > 250) {
-    const space = remaining.lastIndexOf(' ', 250);
-    const end = space !== -1 ? space : 250;
-    chunks.push(remaining.slice(0, end));
-    remaining = remaining.slice(end).trimStart();
+  let current = '';
+  const sentences = new Intl.Segmenter('en', {granularity: 'sentence'}).segment(text);
+  for (const {segment} of sentences) {
+    const sentence = segment.trim();
+    if (sentence.length > 250) {
+      throw new Error('Kokoro sentence exceeds 250 characters; shorten it or add sentence punctuation');
+    }
+    const joined = current ? `${current} ${sentence}` : sentence;
+    if (joined.length > 250) {
+      chunks.push(current);
+      current = sentence;
+    } else {
+      current = joined;
+    }
   }
-  if (remaining.length > 0) chunks.push(remaining);
+  if (current) chunks.push(current);
   return chunks;
 }
 
