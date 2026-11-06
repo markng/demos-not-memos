@@ -20,6 +20,10 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
+      # Node 20 ships npm 10.x; OIDC trusted publishing requires npm >= 11.5.1.
+      - name: Upgrade npm for trusted publishing (OIDC)
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: npm ci
 
