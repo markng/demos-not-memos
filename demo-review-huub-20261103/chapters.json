@@ -1,0 +1,82 @@
+{
+  "chapters": [
+    {
+      "id": "01",
+      "title": "Versioned registration, built in Django",
+      "image": "01-host-builder-two-published-versions.png",
+      "text": "This is the new Django registration prototype, using entirely synthetic people and organizations. We will follow a host changing a form, then see what happens to returning applicants and new registrations. This is a guided review of the actual browser walkthrough, with local Kokoro narration.",
+      "durationMs": 20375
+    },
+    {
+      "id": "02",
+      "title": "Edit a draft without changing live forms",
+      "image": "02-host-draft-v3-edited.png",
+      "text": "The host starts from the latest published form and creates a new draft. Here, job title becomes required, and a business website question is added. This gives each partner room to ask for the information it actually needs, while keeping previously published versions unchanged.",
+      "durationMs": 18450
+    },
+    {
+      "id": "03",
+      "title": "Preview the rules before publishing",
+      "image": "03-host-preview-rejects-missing-required.png",
+      "text": "Before publishing, the host can preview and test the draft. Submitting empty answers produces validation errors for required questions. The point is to catch a configuration mistake before applicants encounter it. This example demonstrates rejection of incomplete answers, not a completed registration.",
+      "durationMs": 20875
+    },
+    {
+      "id": "04",
+      "title": "Publish a new version",
+      "image": "04-host-published-v3.png",
+      "text": "Version three is now published. The earlier versions remain in the history. Existing registrations stay attached to the version they started, while new registrations use the latest published version. A form change should not silently move the goalposts for someone who is already partway through.",
+      "durationMs": 19400
+    },
+    {
+      "id": "05",
+      "title": "Resume the version you started",
+      "image": "05-riley-laptop-resumes-pinned-v1.png",
+      "text": "Riley returns on a laptop and resumes version one. Questions introduced later are absent. Riley can save an incomplete answer and finish later, rather than lose progress. The saved registration keeps its original form version, so the meaning of those answers stays clear.",
+      "durationMs": 19200
+    },
+    {
+      "id": "06",
+      "title": "Keep incomplete registration separate from access",
+      "image": "06-riley-portal-blocked-until-complete.png",
+      "text": "Saving progress is different from completing registration. The walkthrough checks that an incomplete applicant is returned to registration instead of receiving normal portal access. This is the Django behavior under test. The older Java application's login hand-off is not demonstrated in this video.",
+      "durationMs": 20725
+    },
+    {
+      "id": "07",
+      "title": "Continue across devices, then validate",
+      "image": "07-riley-phone-required-errors.png",
+      "text": "A separate browser session signs in as Riley and sees the answer saved on the laptop. Trying to submit with required information missing produces specific errors. This checks continuity across sessions and server-side validation. It is not a claim that the mobile layout or every device has been fully tested.",
+      "durationMs": 20950
+    },
+    {
+      "id": "08",
+      "title": "Create the account with only what is needed",
+      "image": "08-nova-email-only-account-names-required-by-form.png",
+      "text": "Nova is a new applicant. The account can begin with an email address, without making names a universal account-creation requirement. This particular registration form still requires names before final submission. Account identity and partner-specific intake requirements are separate concerns.",
+      "durationMs": 20375
+    },
+    {
+      "id": "09",
+      "title": "Ask follow-up questions only when relevant",
+      "image": "09-nova-latest-version-conditional-shown.png",
+      "text": "Nova receives the latest published form, including the new website question. Choosing yes to selling online reveals a follow-up question for the store address. Conditional questions make a longer intake less overwhelming, while preserving the information a particular partner needs.",
+      "durationMs": 18975
+    },
+    {
+      "id": "10",
+      "title": "Keep each organization's builder separate",
+      "image": "10-omar-own-builder.png",
+      "text": "Omar is a host for a different organization. Omar can open that organization's own registration builder. The next check tries to open the first organization's builder using the same session, to confirm that being a host does not grant access everywhere.",
+      "durationMs": 17800
+    },
+    {
+      "id": "11",
+      "title": "A boundary check, and what remains",
+      "image": "11-omar-404-on-other-portal-builder.png",
+      "text": "The cross-organization request returns not found. That is the boundary this walkthrough verifies. Together, the prototype demonstrates draft editing, publishing, pinned versions, saved progress, conditional fields, and organization isolation. Next comes broader review and the Java connection. The narration you have heard was generated locally, without a cloud speech API.",
+      "durationMs": 25200
+    }
+  ],
+  "fetches": 0
+}

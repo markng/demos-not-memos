@@ -1,0 +1,112 @@
+{
+  "chapter": {
+    "id": "02",
+    "title": "Edit a draft without changing live forms",
+    "image": "02-host-draft-v3-edited.png",
+    "text": "The host starts from the latest published form and creates a new draft. Here, job title becomes required, and a business website question is added. This gives each partner room to ask for the information it actually needs, while keeping previously published versions unchanged.",
+    "durationMs": 18450
+  },
+  "oldTimings": [
+    {
+      "text": "The host starts from the latest published form and creates a new draft. Here, job title becomes required, and a business website question is added. This gives each partner room to ask for the information it actually needs, while keeping previously",
+      "durationMs": 16149.999999999998
+    },
+    {
+      "text": "published versions unchanged.",
+      "durationMs": 2300
+    }
+  ],
+  "newTimings": [
+    {
+      "text": "The host starts from the latest published form and creates a new draft. Here, job title becomes required, and a business website question is added.",
+      "durationMs": 9950
+    },
+    {
+      "text": "This gives each partner room to ask for the information it actually needs, while keeping previously published versions unchanged.",
+      "durationMs": 7975
+    }
+  ],
+  "result": {
+    "audioPath": "demo-review-huub-20261103/sentence-repair/02-after.wav",
+    "durationMs": 17925
+  },
+  "allChapterSegments": [
+    {
+      "id": "01",
+      "chunks": [
+        "This is the new Django registration prototype, using entirely synthetic people and organizations. We will follow a host changing a form, then see what happens to returning applicants and new registrations.",
+        "This is a guided review of the actual browser walkthrough, with local Kokoro narration."
+      ]
+    },
+    {
+      "id": "02",
+      "chunks": [
+        "The host starts from the latest published form and creates a new draft. Here, job title becomes required, and a business website question is added.",
+        "This gives each partner room to ask for the information it actually needs, while keeping previously published versions unchanged."
+      ]
+    },
+    {
+      "id": "03",
+      "chunks": [
+        "Before publishing, the host can preview and test the draft. Submitting empty answers produces validation errors for required questions. The point is to catch a configuration mistake before applicants encounter it.",
+        "This example demonstrates rejection of incomplete answers, not a completed registration."
+      ]
+    },
+    {
+      "id": "04",
+      "chunks": [
+        "Version three is now published. The earlier versions remain in the history. Existing registrations stay attached to the version they started, while new registrations use the latest published version.",
+        "A form change should not silently move the goalposts for someone who is already partway through."
+      ]
+    },
+    {
+      "id": "05",
+      "chunks": [
+        "Riley returns on a laptop and resumes version one. Questions introduced later are absent. Riley can save an incomplete answer and finish later, rather than lose progress.",
+        "The saved registration keeps its original form version, so the meaning of those answers stays clear."
+      ]
+    },
+    {
+      "id": "06",
+      "chunks": [
+        "Saving progress is different from completing registration. The walkthrough checks that an incomplete applicant is returned to registration instead of receiving normal portal access. This is the Django behavior under test.",
+        "The older Java application's login hand-off is not demonstrated in this video."
+      ]
+    },
+    {
+      "id": "07",
+      "chunks": [
+        "A separate browser session signs in as Riley and sees the answer saved on the laptop. Trying to submit with required information missing produces specific errors. This checks continuity across sessions and server-side validation.",
+        "It is not a claim that the mobile layout or every device has been fully tested."
+      ]
+    },
+    {
+      "id": "08",
+      "chunks": [
+        "Nova is a new applicant. The account can begin with an email address, without making names a universal account-creation requirement. This particular registration form still requires names before final submission.",
+        "Account identity and partner-specific intake requirements are separate concerns."
+      ]
+    },
+    {
+      "id": "09",
+      "chunks": [
+        "Nova receives the latest published form, including the new website question. Choosing yes to selling online reveals a follow-up question for the store address.",
+        "Conditional questions make a longer intake less overwhelming, while preserving the information a particular partner needs."
+      ]
+    },
+    {
+      "id": "10",
+      "chunks": [
+        "Omar is a host for a different organization. Omar can open that organization's own registration builder.",
+        "The next check tries to open the first organization's builder using the same session, to confirm that being a host does not grant access everywhere."
+      ]
+    },
+    {
+      "id": "11",
+      "chunks": [
+        "The cross-organization request returns not found. That is the boundary this walkthrough verifies. Together, the prototype demonstrates draft editing, publishing, pinned versions, saved progress, conditional fields, and organization isolation.",
+        "Next comes broader review and the Java connection. The narration you have heard was generated locally, without a cloud speech API."
+      ]
+    }
+  ]
+}
